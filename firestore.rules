@@ -1,0 +1,123 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: parties
+    // Fields: name (string), type (string), openingBalance (number), currentDebit (number), currentCredit (number), createdAt (timestamp)
+    //
+    // Collection: dailyPrices
+    // Fields: date (string), material (string), price (number)
+    //
+    // Collection: transactions
+    // Fields: date (timestamp), partyId (string), type (string), material (string), weight (number), price (number), totalValue (number), adjustAgainstAdvance (bool), isDirectTrade (bool), relatedPartyId (string)
+    //
+    // Collection: stockEntries
+    // Fields: date (timestamp), material (string), weightRaw (string), weightKg (number), sourcePartyId (string), packagingType (string)
+    //
+    // Collection: dailyEntries
+    // Fields: date (timestamp), type (string), name (string), amount (number)
+    //
+    // ===============================================================
+
+    // Helper Functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner() {
+      return isAuthenticated() && request.auth.token.email == "bprateep74@gmail.com";
+    }
+
+    // Validation Functions
+    function isValidParty(data) {
+      return data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.type in ['seller', 'buyer'] &&
+             data.openingBalance is number &&
+             (!('currentDebit' in data) || data.currentDebit is number) &&
+             (!('currentCredit' in data) || data.currentCredit is number) &&
+             (!('createdAt' in data) || data.createdAt is timestamp);
+    }
+
+    function isValidDailyPrice(data) {
+      return data.date is string && data.date.matches("^\\d{4}-\\d{2}-\\d{2}$") &&
+             data.material in ['AA', 'CK', 'AW', 'AC', 'LS', 'BC', 'AWC'] &&
+             data.price is number && data.price >= 0;
+    }
+
+    function isValidTransaction(data) {
+      return data.partyId is string &&
+             data.type in ['Money Given', 'Money Received', 'Material Sent', 'Material Received'] &&
+             data.totalValue is number &&
+             (data.date is timestamp || data.date is string) &&
+             (!('material' in data) || data.material == null || data.material is string) &&
+             (!('weight' in data) || data.weight == null || data.weight is number) &&
+             (!('price' in data) || data.price is number) &&
+             (!('isDirectTrade' in data) || data.isDirectTrade is bool) &&
+             (!('relatedPartyId' in data) || data.relatedPartyId is string) &&
+             (!('packagingType' in data) || data.packagingType in ['Gunny Bags', 'Loose']);
+    }
+
+    function isValidStockEntry(data) {
+      return data.material in ['AA', 'CK', 'AW', 'AC', 'LS', 'BC', 'AWC'] &&
+             data.weightRaw is string && data.weightKg is number &&
+             (!('transactionId' in data) || data.transactionId is string) &&
+             (!('packagingType' in data) || data.packagingType in ['Gunny Bags', 'Loose']);
+    }
+
+    function isValidDailyEntry(data) {
+      return data.type in ['income', 'outgoing'] &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 200 &&
+             data.amount is number && data.amount >= 0 &&
+             (!('date' in data) || data.date is timestamp);
+    }
+
+    function isValidSetting(data) {
+      return !('selectedIds' in data) || data.selectedIds is map;
+    }
+
+    // Rules
+    match /parties/{partyId} {
+      allow read: if isAuthenticated();
+      allow create: if isOwner() && isValidParty(request.resource.data);
+      allow update: if isOwner() && isValidParty(request.resource.data);
+      allow delete: if isOwner();
+    }
+
+    match /dailyPrices/{priceId} {
+      allow read: if isAuthenticated();
+      allow create: if isOwner() && isValidDailyPrice(request.resource.data);
+      allow update: if isOwner() && isValidDailyPrice(request.resource.data);
+      allow delete: if isOwner();
+    }
+
+    match /transactions/{transactionId} {
+      allow read: if isAuthenticated();
+      allow create: if isOwner() && isValidTransaction(request.resource.data);
+      allow update: if isOwner() && isValidTransaction(request.resource.data);
+      allow delete: if isOwner();
+    }
+
+    match /stockEntries/{entryId} {
+      allow read: if isAuthenticated();
+      allow create: if isOwner() && isValidStockEntry(request.resource.data);
+      allow update: if isOwner() && isValidStockEntry(request.resource.data);
+      allow delete: if isOwner();
+    }
+
+    match /dailyEntries/{entryId} {
+      allow read: if isAuthenticated();
+      allow create: if isOwner() && isValidDailyEntry(request.resource.data);
+      allow update: if isOwner() && isValidDailyEntry(request.resource.data);
+      allow delete: if isOwner();
+    }
+
+    match /settings/{settingId} {
+      allow read: if isAuthenticated();
+      allow write: if isOwner() && isValidSetting(request.resource.data);
+    }
+  }
+}

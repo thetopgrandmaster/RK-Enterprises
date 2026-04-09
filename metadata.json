@@ -1,0 +1,5 @@
+{
+  "name": "AluTrade Manager",
+  "description": "A comprehensive aluminum trading management system for middlemen, featuring party ledgers, daily pricing, and godown stock tracking.",
+  "requestFramePermissions": []
+}

@@ -1,0 +1,67 @@
+{
+  "entities": {
+    "Party": {
+      "title": "Party",
+      "description": "A seller or buyer in the trading system",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Name of the party" },
+        "type": { "type": "string", "enum": ["seller", "buyer"], "description": "Type of party" },
+        "openingBalance": { "type": "number", "description": "Initial balance (Debit - Credit)" },
+        "currentDebit": { "type": "number", "description": "Total amount party owes me" },
+        "currentCredit": { "type": "number", "description": "Total amount I owe party" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "type", "openingBalance"]
+    },
+    "DailyPrice": {
+      "title": "Daily Price",
+      "description": "Market price for materials on a specific date",
+      "type": "object",
+      "properties": {
+        "date": { "type": "string", "format": "date", "description": "YYYY-MM-DD" },
+        "material": { "type": "string", "enum": ["AA", "CK", "AW", "AC", "LS", "BC", "AWC"] },
+        "price": { "type": "number", "description": "Price per Kg" }
+      },
+      "required": ["date", "material", "price"]
+    },
+    "Transaction": {
+      "title": "Transaction",
+      "description": "Financial or material movement record",
+      "type": "object",
+      "properties": {
+        "date": { "type": "string", "format": "date-time" },
+        "partyId": { "type": "string", "description": "Reference to Party" },
+        "type": { "type": "string", "enum": ["Money Given", "Money Received", "Material Sent", "Material Received"] },
+        "material": { "type": "string", "enum": ["AA", "CK", "AW", "AC", "LS", "BC", "AWC"] },
+        "weight": { "type": "number", "description": "Weight in Kg" },
+        "price": { "type": "number", "description": "Price per Kg at time of transaction" },
+        "totalValue": { "type": "number", "description": "Total financial value" },
+        "adjustAgainstAdvance": { "type": "boolean" },
+        "isDirectTrade": { "type": "boolean", "description": "If true, does not affect Godown stock" },
+        "relatedPartyId": { "type": "string", "description": "For direct trades, the other party involved" }
+      },
+      "required": ["date", "partyId", "type", "totalValue"]
+    },
+    "StockEntry": {
+      "title": "Stock Entry",
+      "description": "Physical material entry into Godown",
+      "type": "object",
+      "properties": {
+        "date": { "type": "string", "format": "date-time" },
+        "material": { "type": "string", "enum": ["AA", "CK", "AW", "AC", "LS", "BC", "AWC"] },
+        "weightRaw": { "type": "string", "description": "Format: 35 x 150" },
+        "weightKg": { "type": "number", "description": "Converted weight in Kg" },
+        "sourcePartyId": { "type": "string" },
+        "packagingType": { "type": "string", "enum": ["Gunny Bags", "Loose"] }
+      },
+      "required": ["date", "material", "weightRaw", "weightKg"]
+    }
+  },
+  "firestore": {
+    "/parties/{partyId}": { "schema": "Party", "description": "Parties collection" },
+    "/dailyPrices/{priceId}": { "schema": "DailyPrice", "description": "Daily prices collection" },
+    "/transactions/{transactionId}": { "schema": "Transaction", "description": "Transactions collection" },
+    "/stockEntries/{entryId}": { "schema": "StockEntry", "description": "Godown stock entries" }
+  }
+}
