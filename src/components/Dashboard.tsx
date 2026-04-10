@@ -16,6 +16,7 @@ import { Plus, ArrowUpRight, ArrowDownLeft, Wallet, Package, History, Warehouse 
 import { formatCurrency, formatWeight } from '../lib/utils';
 import { format } from 'date-fns';
 import { handleDatabaseError, OperationType } from '../lib/database-errors';
+import { PartySearch } from './PartySearch';
 
 const MATERIALS: MaterialType[] = ['AA', 'CK', 'AW', 'AC', 'LS', 'BC', 'AWC'];
 
@@ -200,16 +201,11 @@ export default function Dashboard() {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label>Party Name</Label>
-              <Select value={formData.partyId} onValueChange={val => setFormData({...formData, partyId: val})}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select party" />
-                </SelectTrigger>
-                <SelectContent>
-                  {parties.map(p => (
-                    <SelectItem key={p.id} value={p.id!}>{p.name} ({p.type})</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <PartySearch 
+                parties={parties} 
+                value={formData.partyId} 
+                onValueChange={val => setFormData({...formData, partyId: val})} 
+              />
             </div>
 
             <div className="space-y-2">
@@ -276,15 +272,12 @@ export default function Dashboard() {
                 {formData.isDirectTrade && (
                   <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
                     <Label>Related Party ({formData.type === 'Material Received' ? 'Buyer' : 'Seller'})</Label>
-                    <Select value={formData.relatedPartyId} onValueChange={val => setFormData({...formData, relatedPartyId: val})}>
-                      <SelectTrigger><SelectValue placeholder="Select related party" /></SelectTrigger>
-                      <SelectContent>
-                        {parties
-                          .filter(p => p.id !== formData.partyId && (formData.type === 'Material Received' ? p.type === 'buyer' : p.type === 'seller'))
-                          .map(p => <SelectItem key={p.id} value={p.id!}>{p.name}</SelectItem>)
-                        }
-                      </SelectContent>
-                    </Select>
+                    <PartySearch
+                      parties={parties.filter(p => p.id !== formData.partyId && (formData.type === 'Material Received' ? p.type === 'buyer' : p.type === 'seller'))}
+                      value={formData.relatedPartyId}
+                      onValueChange={val => setFormData({...formData, relatedPartyId: val})}
+                      placeholder="Select related party"
+                    />
                   </div>
                 )}
               </>

@@ -13,6 +13,7 @@ import { IndianRupee, ArrowUpRight, ArrowDownLeft, History } from 'lucide-react'
 import { formatCurrency } from '../lib/utils';
 import { format } from 'date-fns';
 import { handleDatabaseError, OperationType } from '../lib/database-errors';
+import { PartySearch } from './PartySearch';
 
 export default function Payments() {
   const [parties, setParties] = useState<Party[]>([]);
@@ -123,21 +124,12 @@ export default function Payments() {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label>Party</Label>
-              <Select 
-                value={formData.partyId} 
+              <PartySearch
+                parties={parties}
+                value={formData.partyId}
                 onValueChange={(val) => setFormData({ ...formData, partyId: val })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select Party" />
-                </SelectTrigger>
-                <SelectContent>
-                  {parties.map(p => (
-                    <SelectItem key={p.id} value={p.id!}>
-                      {p.name} ({p.type}) - Bal: {formatCurrency((p.currentDebit || 0) - (p.currentCredit || 0))}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                placeholder="Select Party"
+              />
             </div>
 
             <div className="space-y-2">
