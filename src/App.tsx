@@ -97,7 +97,8 @@ export default function App() {
       if (error.code === 'auth/popup-closed-by-user') {
         message = 'Sign-in popup was closed before completion.';
       } else if (error.code === 'auth/unauthorized-domain') {
-        message = `This domain (${window.location.hostname}) is not authorized in Firebase Console. Please add it to "Authorized domains" in the Auth settings.`;
+        const currentProjectId = import.meta.env.VITE_FIREBASE_PROJECT_ID || 'unknown';
+        message = `This domain (${window.location.hostname}) is not authorized in Firebase Console for project "${currentProjectId}". Please add it to "Authorized domains" in the Auth settings for THAT project.`;
       } else if (error.code === 'auth/operation-not-allowed') {
         message = 'Google Sign-In is not enabled in your Firebase Console.';
       }
