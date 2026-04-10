@@ -21,7 +21,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Toaster } from '@/components/ui/sonner';
 import { toast } from 'sonner';
-import { LogIn, LogOut, LayoutDashboard, Users, IndianRupee, Warehouse, FileText, Calendar, ShoppingBag, UserPlus } from 'lucide-react';
+import { LogIn, LogOut, LayoutDashboard, Users, IndianRupee, Warehouse, FileText, Calendar, ShoppingBag, UserPlus, RefreshCcw } from 'lucide-react';
 
 // Components (to be implemented)
 import Dashboard from './components/Dashboard';
@@ -31,6 +31,7 @@ import GodownStock from './components/GodownStock';
 import LoadSheet from './components/LoadSheet';
 import DailyTracker from './components/DailyTracker';
 import PurchaseStock from './components/PurchaseStock';
+import Reset from './components/Reset';
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -290,6 +291,10 @@ export default function App() {
                 <Calendar className="w-4 h-4" />
                 <span className="hidden sm:inline">Daily</span>
               </TabsTrigger>
+              <TabsTrigger value="reset" className="flex items-center gap-2 px-4">
+                <RefreshCcw className="w-4 h-4" />
+                <span className="hidden sm:inline">Reset</span>
+              </TabsTrigger>
             </TabsList>
           </div>
 
@@ -313,6 +318,9 @@ export default function App() {
           </TabsContent>
           <TabsContent value="daily" className="mt-0">
             <DailyTracker />
+          </TabsContent>
+          <TabsContent value="reset" className="mt-0">
+            <Reset />
           </TabsContent>
         </Tabs>
       </main>

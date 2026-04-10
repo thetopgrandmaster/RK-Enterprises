@@ -26,7 +26,6 @@ export default function Dashboard() {
   const [stockEntries, setStockEntries] = useState<StockEntry[]>([]);
   const [dailyEntries, setDailyEntries] = useState<DailyEntry[]>([]);
   const [loading, setLoading] = useState(false);
-  const [resetConfirm, setResetConfirm] = useState(false);
 
   const [formData, setFormData] = useState({
     partyId: '',
@@ -206,47 +205,6 @@ export default function Dashboard() {
       });
     } catch (error) {
       const message = handleDatabaseError(error, OperationType.WRITE, 'transactions');
-      toast.error(message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleSystemReset = async () => {
-    if (!resetConfirm) {
-      setResetConfirm(true);
-      toast.info('Click again to confirm full system reset');
-      setTimeout(() => setResetConfirm(false), 5000);
-      return;
-    }
-
-    setLoading(true);
-    const userId = auth.currentUser?.uid;
-    if (!userId) {
-      toast.error('User not authenticated');
-      setLoading(false);
-      return;
-    }
-
-    try {
-      const updates: any = {};
-      
-      // Reset all party balances
-      parties.forEach(party => {
-        updates[`/users/${userId}/parties/${party.id}/currentDebit`] = 0;
-        updates[`/users/${userId}/parties/${party.id}/currentCredit`] = 0;
-      });
-
-      // Clear all other collections
-      updates[`/users/${userId}/transactions`] = null;
-      updates[`/users/${userId}/stockEntries`] = null;
-      updates[`/users/${userId}/dailyEntries`] = null;
-
-      await update(ref(rtdb), updates);
-      toast.success('System reset successful. All data cleared.');
-      setResetConfirm(false);
-    } catch (error) {
-      const message = handleDatabaseError(error, OperationType.WRITE, 'system-reset');
       toast.error(message);
     } finally {
       setLoading(false);
@@ -452,27 +410,6 @@ export default function Dashboard() {
                 )}
               </TableBody>
             </Table>
-          </CardContent>
-        </Card>
-
-        <Card className="border-destructive/20 bg-destructive/5">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-bold text-destructive flex items-center gap-2">
-              Danger Zone
-            </CardTitle>
-            <CardDescription className="text-xs">
-              This will permanently delete all transactions, stock, and reset all party balances to zero.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button 
-              variant={resetConfirm ? "destructive" : "outline"} 
-              className="w-full text-xs h-8"
-              onClick={handleSystemReset}
-              disabled={loading}
-            >
-              {resetConfirm ? "CONFIRM RESET" : "Reset All Data"}
-            </Button>
           </CardContent>
         </Card>
       </div>
