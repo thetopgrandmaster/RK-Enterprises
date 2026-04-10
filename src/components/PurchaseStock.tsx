@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { rtdb } from '../firebase';
+import { rtdb, auth } from '../firebase';
 import { ref, onValue, query, orderByChild, equalTo } from 'firebase/database';
 import { Party, StockEntry } from '../types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -17,7 +17,10 @@ export default function PurchaseStock() {
   const [search, setSearch] = useState('');
 
   useEffect(() => {
-    const partiesRef = ref(rtdb, 'parties');
+    const userId = auth.currentUser?.uid;
+    if (!userId) return;
+
+    const partiesRef = ref(rtdb, `users/${userId}/parties`);
     const q = query(partiesRef, orderByChild('type'), equalTo('seller'));
     const unsubscribe = onValue(q, (snapshot) => {
       const data = snapshot.val();
@@ -32,12 +35,13 @@ export default function PurchaseStock() {
   }, []);
 
   useEffect(() => {
-    if (!selectedParty?.id) {
+    const userId = auth.currentUser?.uid;
+    if (!userId || !selectedParty?.id) {
       setPartyStock([]);
       return;
     }
 
-    const stockRef = ref(rtdb, 'stockEntries');
+    const stockRef = ref(rtdb, `users/${userId}/stockEntries`);
     const q = query(stockRef, orderByChild('sourcePartyId'), equalTo(selectedParty.id));
 
     const unsubscribe = onValue(q, (snapshot) => {

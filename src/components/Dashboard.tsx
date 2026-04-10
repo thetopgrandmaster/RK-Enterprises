@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { rtdb } from '../firebase';
+import { rtdb, auth } from '../firebase';
 import { ref, onValue, push, set, update, query, orderByChild, limitToLast, serverTimestamp, get } from 'firebase/database';
 import { Transaction, Party, MaterialType, DailyPrice, TransactionType, StockEntry, DailyEntry } from '../types';
 import { Button } from '@/components/ui/button';
@@ -41,13 +41,16 @@ export default function Dashboard() {
   });
 
   useEffect(() => {
-    const partiesRef = ref(rtdb, 'parties');
+    const userId = auth.currentUser?.uid;
+    if (!userId) return;
+
+    const partiesRef = ref(rtdb, `users/${userId}/parties`);
     const unsubscribeParties = onValue(partiesRef, (snapshot) => {
       const data = snapshot.val();
       setParties(data ? Object.entries(data).map(([id, val]: [string, any]) => ({ id, ...val })) : []);
     });
 
-    const transRef = ref(rtdb, 'transactions');
+    const transRef = ref(rtdb, `users/${userId}/transactions`);
     const qTrans = query(transRef, limitToLast(10));
     const unsubscribeTrans = onValue(qTrans, (snapshot) => {
       const data = snapshot.val();
@@ -55,13 +58,13 @@ export default function Dashboard() {
       setTransactions(list.sort((a, b) => (b.date || 0) - (a.date || 0)));
     });
 
-    const stockRef = ref(rtdb, 'stockEntries');
+    const stockRef = ref(rtdb, `users/${userId}/stockEntries`);
     const unsubscribeStock = onValue(stockRef, (snapshot) => {
       const data = snapshot.val();
       setStockEntries(data ? Object.entries(data).map(([id, val]: [string, any]) => ({ id, ...val })) : []);
     });
 
-    const dailyRef = ref(rtdb, 'dailyEntries');
+    const dailyRef = ref(rtdb, `users/${userId}/dailyEntries`);
     const unsubscribeDaily = onValue(dailyRef, (snapshot) => {
       const data = snapshot.val();
       setDailyEntries(data ? Object.entries(data).map(([id, val]: [string, any]) => ({ id, ...val })) : []);
@@ -89,6 +92,13 @@ export default function Dashboard() {
     }
 
     setLoading(true);
+    const userId = auth.currentUser?.uid;
+    if (!userId) {
+      toast.error('User not authenticated');
+      setLoading(false);
+      return;
+    }
+
     const price = (formData.type === 'Material Received' || formData.type === 'Material Sent') 
       ? formData.price 
       : 0;
@@ -104,7 +114,7 @@ export default function Dashboard() {
     }
 
     try {
-      const partyRef = ref(rtdb, `parties/${formData.partyId}`);
+      const partyRef = ref(rtdb, `users/${userId}/parties/${formData.partyId}`);
       const partySnapshot = await get(partyRef);
       if (!partySnapshot.exists()) throw new Error("Party does not exist!");
 
@@ -123,9 +133,9 @@ export default function Dashboard() {
       }
 
       const updates: any = {};
-      const transId = push(ref(rtdb, 'transactions')).key;
+      const transId = push(ref(rtdb, `users/${userId}/transactions`)).key;
       
-      updates[`/transactions/${transId}`] = {
+      updates[`/users/${userId}/transactions/${transId}`] = {
         partyId: formData.partyId,
         type: formData.type,
         material: (formData.type === 'Material Received' || formData.type === 'Material Sent') ? formData.material : null,
@@ -139,8 +149,8 @@ export default function Dashboard() {
       };
 
       if (formData.type === 'Material Received' && !formData.isDirectTrade) {
-        const stockId = push(ref(rtdb, 'stockEntries')).key;
-        updates[`/stockEntries/${stockId}`] = {
+        const stockId = push(ref(rtdb, `users/${userId}/stockEntries`)).key;
+        updates[`/users/${userId}/stockEntries/${stockId}`] = {
           material: formData.material,
           weightRaw: formData.weight.toString(),
           weightKg: formData.weight,
@@ -151,22 +161,22 @@ export default function Dashboard() {
         };
       }
 
-      updates[`/parties/${formData.partyId}/currentDebit`] = newDebit;
-      updates[`/parties/${formData.partyId}/currentCredit`] = newCredit;
+      updates[`/users/${userId}/parties/${formData.partyId}/currentDebit`] = newDebit;
+      updates[`/users/${userId}/parties/${formData.partyId}/currentCredit`] = newCredit;
 
       // Add to daily entries if it's a money transaction
       if (formData.type === 'Money Given' || formData.type === 'Money Received') {
-        const dailyId = push(ref(rtdb, 'dailyEntries')).key;
-        updates[`/dailyEntries/${dailyId}`] = {
+        const dailyId = push(ref(rtdb, `users/${userId}/dailyEntries`)).key;
+        updates[`/users/${userId}/dailyEntries/${dailyId}`] = {
           type: formData.type === 'Money Given' ? 'outgoing' : 'income',
           amount: totalValue,
-          description: `Payment to/from ${partyData.name}`,
+          name: partyData.name,
           date: serverTimestamp(),
         };
       }
 
       if (formData.isDirectTrade && formData.relatedPartyId) {
-        const relatedRef = ref(rtdb, `parties/${formData.relatedPartyId}`);
+        const relatedRef = ref(rtdb, `users/${userId}/parties/${formData.relatedPartyId}`);
         const relatedSnapshot = await get(relatedRef);
         if (relatedSnapshot.exists()) {
           const relatedData = relatedSnapshot.val() as Party;
@@ -179,8 +189,8 @@ export default function Dashboard() {
             relCredit += totalValue;
           }
 
-          updates[`/parties/${formData.relatedPartyId}/currentDebit`] = relDebit;
-          updates[`/parties/${formData.relatedPartyId}/currentCredit`] = relCredit;
+          updates[`/users/${userId}/parties/${formData.relatedPartyId}/currentDebit`] = relDebit;
+          updates[`/users/${userId}/parties/${formData.relatedPartyId}/currentCredit`] = relCredit;
         }
       }
 
@@ -211,19 +221,26 @@ export default function Dashboard() {
     }
 
     setLoading(true);
+    const userId = auth.currentUser?.uid;
+    if (!userId) {
+      toast.error('User not authenticated');
+      setLoading(false);
+      return;
+    }
+
     try {
       const updates: any = {};
       
       // Reset all party balances
       parties.forEach(party => {
-        updates[`/parties/${party.id}/currentDebit`] = 0;
-        updates[`/parties/${party.id}/currentCredit`] = 0;
+        updates[`/users/${userId}/parties/${party.id}/currentDebit`] = 0;
+        updates[`/users/${userId}/parties/${party.id}/currentCredit`] = 0;
       });
 
       // Clear all other collections
-      updates['/transactions'] = null;
-      updates['/stockEntries'] = null;
-      updates['/dailyEntries'] = null;
+      updates[`/users/${userId}/transactions`] = null;
+      updates[`/users/${userId}/stockEntries`] = null;
+      updates[`/users/${userId}/dailyEntries`] = null;
 
       await update(ref(rtdb), updates);
       toast.success('System reset successful. All data cleared.');

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { rtdb } from '../firebase';
+import { rtdb, auth } from '../firebase';
 import { ref, onValue, push, set, remove, serverTimestamp } from 'firebase/database';
 import { DailyEntry } from '../types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -20,7 +20,10 @@ export default function DailyTracker() {
   const [outgoingAmount, setOutgoingAmount] = useState('');
 
   useEffect(() => {
-    const dailyRef = ref(rtdb, 'dailyEntries');
+    const userId = auth.currentUser?.uid;
+    if (!userId) return;
+
+    const dailyRef = ref(rtdb, `users/${userId}/dailyEntries`);
     const unsubscribe = onValue(dailyRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {
@@ -47,7 +50,13 @@ export default function DailyTracker() {
     }
 
     try {
-      const newEntryRef = push(ref(rtdb, 'dailyEntries'));
+      const userId = auth.currentUser?.uid;
+      if (!userId) {
+        toast.error('User not authenticated');
+        return;
+      }
+
+      const newEntryRef = push(ref(rtdb, `users/${userId}/dailyEntries`));
       await set(newEntryRef, {
         type,
         name,
@@ -71,7 +80,9 @@ export default function DailyTracker() {
 
   const handleDelete = async (id: string) => {
     try {
-      await remove(ref(rtdb, `dailyEntries/${id}`));
+      const userId = auth.currentUser?.uid;
+      if (!userId) return;
+      await remove(ref(rtdb, `users/${userId}/dailyEntries/${id}`));
       toast.success('Entry deleted');
     } catch (error) {
       const message = handleDatabaseError(error, OperationType.DELETE, `dailyEntries/${id}`);

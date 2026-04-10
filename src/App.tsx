@@ -239,15 +239,8 @@ export default function App() {
     );
   }
 
-  const isAdmin = user?.email === 'bprateep74@gmail.com';
-
   return (
     <div className="min-h-screen bg-neutral-50 flex flex-col">
-      {!isAdmin && (
-        <div className="bg-amber-500 text-white text-center py-2 text-sm font-medium">
-          Warning: You are logged in as {user?.email}, but only bprateep74@gmail.com has admin permissions.
-        </div>
-      )}
       <header className="bg-white border-b sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">

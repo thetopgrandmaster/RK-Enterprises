@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { rtdb } from '../firebase';
+import { rtdb, auth } from '../firebase';
 import { ref, onValue } from 'firebase/database';
 import { StockEntry, MaterialType } from '../types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,7 +15,10 @@ export default function LoadSheet() {
   const [selectedIds, setSelectedIds] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
-    const stockRef = ref(rtdb, 'stockEntries');
+    const userId = auth.currentUser?.uid;
+    if (!userId) return;
+
+    const stockRef = ref(rtdb, `users/${userId}/stockEntries`);
     const unsubscribeEntries = onValue(stockRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {
@@ -26,7 +29,7 @@ export default function LoadSheet() {
       }
     });
 
-    const settingsRef = ref(rtdb, 'settings/loadSheet');
+    const settingsRef = ref(rtdb, `users/${userId}/settings/loadSheet`);
     const unsubscribeSettings = onValue(settingsRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {

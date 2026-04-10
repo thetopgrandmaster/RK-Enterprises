@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { rtdb } from '../firebase';
+import { rtdb, auth } from '../firebase';
 import { ref, onValue, push, set, update, query, orderByChild, limitToLast, serverTimestamp, get } from 'firebase/database';
 import { Party, Transaction, TransactionType } from '../types';
 import { Button } from '@/components/ui/button';
@@ -24,17 +24,19 @@ export default function Payments() {
     partyId: '',
     type: 'Money Given' as TransactionType,
     amount: 0,
-    adjustAgainstAdvance: false,
   });
 
   useEffect(() => {
-    const partiesRef = ref(rtdb, 'parties');
+    const userId = auth.currentUser?.uid;
+    if (!userId) return;
+
+    const partiesRef = ref(rtdb, `users/${userId}/parties`);
     const unsubscribeParties = onValue(partiesRef, (snapshot) => {
       const data = snapshot.val();
       setParties(data ? Object.entries(data).map(([id, val]: [string, any]) => ({ id, ...val })) : []);
     });
 
-    const transRef = ref(rtdb, 'transactions');
+    const transRef = ref(rtdb, `users/${userId}/transactions`);
     const qTrans = query(transRef, limitToLast(50));
     
     const unsubscribeTrans = onValue(qTrans, (snapshot) => {
@@ -66,8 +68,15 @@ export default function Payments() {
     }
 
     setLoading(true);
+    const userId = auth.currentUser?.uid;
+    if (!userId) {
+      toast.error('User not authenticated');
+      setLoading(false);
+      return;
+    }
+
     try {
-      const partyRef = ref(rtdb, `parties/${formData.partyId}`);
+      const partyRef = ref(rtdb, `users/${userId}/parties/${formData.partyId}`);
       const partySnapshot = await get(partyRef);
       if (!partySnapshot.exists()) throw new Error('Party not found');
 
@@ -81,9 +90,9 @@ export default function Payments() {
       }
 
       const updates: any = {};
-      const transId = push(ref(rtdb, 'transactions')).key;
+      const transId = push(ref(rtdb, `users/${userId}/transactions`)).key;
       
-      updates[`/transactions/${transId}`] = {
+      updates[`/users/${userId}/transactions/${transId}`] = {
         partyId: formData.partyId,
         partyName: partyData.name,
         type: formData.type,
@@ -91,26 +100,25 @@ export default function Payments() {
         totalValue: formData.amount,
         date: serverTimestamp(),
         createdAt: serverTimestamp(),
-        adjustAgainstAdvance: formData.adjustAgainstAdvance
       };
 
-      updates[`/parties/${formData.partyId}/currentDebit`] = currentDebit;
-      updates[`/parties/${formData.partyId}/currentCredit`] = currentCredit;
-      updates[`/parties/${formData.partyId}/lastUpdated`] = serverTimestamp();
+      updates[`/users/${userId}/parties/${formData.partyId}/currentDebit`] = currentDebit;
+      updates[`/users/${userId}/parties/${formData.partyId}/currentCredit`] = currentCredit;
+      updates[`/users/${userId}/parties/${formData.partyId}/lastUpdated`] = serverTimestamp();
 
       // Add to daily entries
-      const dailyId = push(ref(rtdb, 'dailyEntries')).key;
-      updates[`/dailyEntries/${dailyId}`] = {
+      const dailyId = push(ref(rtdb, `users/${userId}/dailyEntries`)).key;
+      updates[`/users/${userId}/dailyEntries/${dailyId}`] = {
         type: formData.type === 'Money Given' ? 'outgoing' : 'income',
         amount: formData.amount,
-        description: `Payment to/from ${partyData.name}`,
+        name: partyData.name,
         date: serverTimestamp(),
       };
 
       await update(ref(rtdb), updates);
 
       toast.success('Payment recorded successfully');
-      setFormData({ ...formData, amount: 0, adjustAgainstAdvance: false });
+      setFormData({ ...formData, amount: 0 });
     } catch (error) {
       const message = handleDatabaseError(error, OperationType.WRITE, 'transactions');
       toast.error(message);
@@ -165,17 +173,6 @@ export default function Payments() {
                 onChange={(e) => setFormData({ ...formData, amount: Number(e.target.value) })}
                 placeholder="0.00"
               />
-            </div>
-
-            <div className="flex items-center space-x-2 pt-2">
-              <Checkbox 
-                id="adjust" 
-                checked={formData.adjustAgainstAdvance}
-                onCheckedChange={(checked) => setFormData({ ...formData, adjustAgainstAdvance: !!checked })}
-              />
-              <Label htmlFor="adjust" className="text-sm font-normal cursor-pointer">
-                Adjust against existing balance
-              </Label>
             </div>
 
             <Button type="submit" className="w-full" disabled={loading}>

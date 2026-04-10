@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { rtdb } from '../firebase';
+import { rtdb, auth } from '../firebase';
 import { ref, onValue, push, set, update, remove, query, orderByChild, equalTo, serverTimestamp } from 'firebase/database';
 import { Party, Transaction } from '../types';
 import { Button } from '@/components/ui/button';
@@ -31,7 +31,10 @@ export default function Parties() {
   const [partyTransactions, setPartyTransactions] = useState<Transaction[]>([]);
 
   useEffect(() => {
-    const partiesRef = ref(rtdb, 'parties');
+    const userId = auth.currentUser?.uid;
+    if (!userId) return;
+
+    const partiesRef = ref(rtdb, `users/${userId}/parties`);
     const unsubscribe = onValue(partiesRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {
@@ -49,12 +52,13 @@ export default function Parties() {
   }, []);
 
   useEffect(() => {
-    if (!selectedPartyForHistory?.id) {
+    const userId = auth.currentUser?.uid;
+    if (!userId || !selectedPartyForHistory?.id) {
       setPartyTransactions([]);
       return;
     }
 
-    const transactionsRef = ref(rtdb, 'transactions');
+    const transactionsRef = ref(rtdb, `users/${userId}/transactions`);
     const q = query(transactionsRef, orderByChild('partyId'), equalTo(selectedPartyForHistory.id));
     
     const unsubscribe = onValue(q, (snapshot) => {
@@ -77,15 +81,21 @@ export default function Parties() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      const userId = auth.currentUser?.uid;
+      if (!userId) {
+        toast.error('User not authenticated');
+        return;
+      }
+
       if (editingParty) {
-        await update(ref(rtdb, `parties/${editingParty.id}`), {
+        await update(ref(rtdb, `users/${userId}/parties/${editingParty.id}`), {
           name: formData.name,
           type: formData.type,
           openingBalance: Number(formData.openingBalance),
         });
         toast.success('Party updated successfully');
       } else {
-        const newPartyRef = push(ref(rtdb, 'parties'));
+        const newPartyRef = push(ref(rtdb, `users/${userId}/parties`));
         await set(newPartyRef, {
           ...formData,
           openingBalance: Number(formData.openingBalance),
@@ -120,7 +130,12 @@ export default function Parties() {
 
   const handleDelete = async (id: string) => {
     try {
-      await remove(ref(rtdb, `parties/${id}`));
+      const userId = auth.currentUser?.uid;
+      if (!userId) {
+        toast.error('User not authenticated');
+        return;
+      }
+      await remove(ref(rtdb, `users/${userId}/parties/${id}`));
       toast.success('Party deleted successfully');
     } catch (error) {
       const message = handleDatabaseError(error, OperationType.DELETE, `parties/${id}`);

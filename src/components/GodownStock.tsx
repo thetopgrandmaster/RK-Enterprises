@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { rtdb } from '../firebase';
+import { rtdb, auth } from '../firebase';
 import { ref, onValue, set, update, remove } from 'firebase/database';
 import { StockEntry, MaterialType, Transaction } from '../types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -19,19 +19,22 @@ export default function GodownStock() {
   const [selectedEntries, setSelectedEntries] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
-    const stockRef = ref(rtdb, 'stockEntries');
+    const userId = auth.currentUser?.uid;
+    if (!userId) return;
+
+    const stockRef = ref(rtdb, `users/${userId}/stockEntries`);
     const unsubscribeEntries = onValue(stockRef, (snapshot) => {
       const data = snapshot.val();
       setEntries(data ? Object.entries(data).map(([id, val]: [string, any]) => ({ id, ...val })) : []);
     });
 
-    const transRef = ref(rtdb, 'transactions');
+    const transRef = ref(rtdb, `users/${userId}/transactions`);
     const unsubscribeTransactions = onValue(transRef, (snapshot) => {
       const data = snapshot.val();
       setTransactions(data ? Object.entries(data).map(([id, val]: [string, any]) => ({ id, ...val })) : []);
     });
 
-    const settingsRef = ref(rtdb, 'settings/loadSheet');
+    const settingsRef = ref(rtdb, `users/${userId}/settings/loadSheet`);
     const unsubscribeLoadSheet = onValue(settingsRef, (snapshot) => {
       const data = snapshot.val();
       if (data) {
@@ -49,10 +52,13 @@ export default function GodownStock() {
   }, []);
 
   const toggleEntry = async (id: string) => {
+    const userId = auth.currentUser?.uid;
+    if (!userId) return;
+
     const newSelected = { ...selectedEntries, [id]: !selectedEntries[id] };
     setSelectedEntries(newSelected);
     try {
-      await update(ref(rtdb, 'settings/loadSheet'), { selectedIds: newSelected });
+      await update(ref(rtdb, `users/${userId}/settings/loadSheet`), { selectedIds: newSelected });
     } catch (error) {
       const message = handleDatabaseError(error, OperationType.UPDATE, 'settings/loadSheet');
       toast.error(message);
@@ -60,23 +66,29 @@ export default function GodownStock() {
   };
 
   const selectAllForMaterial = async (material: MaterialType) => {
+    const userId = auth.currentUser?.uid;
+    if (!userId) return;
+
     const materialEntries = entries.filter(e => e.material === material);
     const newSelected = { ...selectedEntries };
     materialEntries.forEach(e => {
       newSelected[e.id!] = true;
     });
     setSelectedEntries(newSelected);
-    await update(ref(rtdb, 'settings/loadSheet'), { selectedIds: newSelected });
+    await update(ref(rtdb, `users/${userId}/settings/loadSheet`), { selectedIds: newSelected });
   };
 
   const deselectAllForMaterial = async (material: MaterialType) => {
+    const userId = auth.currentUser?.uid;
+    if (!userId) return;
+
     const materialEntries = entries.filter(e => e.material === material);
     const newSelected = { ...selectedEntries };
     materialEntries.forEach(e => {
       newSelected[e.id!] = false;
     });
     setSelectedEntries(newSelected);
-    await update(ref(rtdb, 'settings/loadSheet'), { selectedIds: newSelected });
+    await update(ref(rtdb, `users/${userId}/settings/loadSheet`), { selectedIds: newSelected });
   };
 
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -84,7 +96,9 @@ export default function GodownStock() {
 
   const deleteEntry = async (id: string) => {
     try {
-      await remove(ref(rtdb, `stockEntries/${id}`));
+      const userId = auth.currentUser?.uid;
+      if (!userId) return;
+      await remove(ref(rtdb, `users/${userId}/stockEntries/${id}`));
       toast.success('Entry deleted');
       setDeletingId(null);
     } catch (error) {
@@ -95,6 +109,9 @@ export default function GodownStock() {
 
   const deleteMaterialStock = async (material: MaterialType) => {
     try {
+      const userId = auth.currentUser?.uid;
+      if (!userId) return;
+
       const materialEntries = entries.filter(e => e.material === material);
       if (materialEntries.length === 0) {
         toast.error('No stock found for this material');
@@ -104,7 +121,7 @@ export default function GodownStock() {
       
       const updates: any = {};
       materialEntries.forEach(e => {
-        updates[`/stockEntries/${e.id}`] = null;
+        updates[`/users/${userId}/stockEntries/${e.id}`] = null;
       });
       await update(ref(rtdb), updates);
       toast.success(`All ${material} stock deleted`);
@@ -156,8 +173,10 @@ export default function GodownStock() {
             className="text-muted-foreground hover:text-destructive"
             onClick={async () => {
               try {
+                const userId = auth.currentUser?.uid;
+                if (!userId) return;
                 setSelectedEntries({});
-                await update(ref(rtdb, 'settings/loadSheet'), { selectedIds: {} });
+                await update(ref(rtdb, `users/${userId}/settings/loadSheet`), { selectedIds: {} });
                 toast.success('All selections cleared');
               } catch (error) {
                 const message = handleDatabaseError(error, OperationType.UPDATE, 'settings/loadSheet');
