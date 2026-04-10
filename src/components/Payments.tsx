@@ -98,6 +98,15 @@ export default function Payments() {
       updates[`/parties/${formData.partyId}/currentCredit`] = currentCredit;
       updates[`/parties/${formData.partyId}/lastUpdated`] = serverTimestamp();
 
+      // Add to daily entries
+      const dailyId = push(ref(rtdb, 'dailyEntries')).key;
+      updates[`/dailyEntries/${dailyId}`] = {
+        type: formData.type === 'Money Given' ? 'outgoing' : 'income',
+        amount: formData.amount,
+        description: `Payment to/from ${partyData.name}`,
+        date: serverTimestamp(),
+      };
+
       await update(ref(rtdb), updates);
 
       toast.success('Payment recorded successfully');
@@ -197,7 +206,7 @@ export default function Payments() {
                     <div>
                       <p className="font-medium">{t.partyName}</p>
                       <p className="text-xs text-muted-foreground">
-                        {t.date?.toDate ? format(t.date.toDate(), 'dd/MM/yyyy HH:mm') : t.date || 'Pending...'}
+                        {t.date?.toDate ? format(t.date.toDate(), 'dd/MM/yyyy HH:mm') : (typeof t.date === 'number' ? format(new Date(t.date), 'dd/MM/yyyy HH:mm') : 'Pending...')}
                       </p>
                     </div>
                   </div>

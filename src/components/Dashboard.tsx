@@ -26,6 +26,7 @@ export default function Dashboard() {
   const [stockEntries, setStockEntries] = useState<StockEntry[]>([]);
   const [dailyEntries, setDailyEntries] = useState<DailyEntry[]>([]);
   const [loading, setLoading] = useState(false);
+  const [resetConfirm, setResetConfirm] = useState(false);
 
   const [formData, setFormData] = useState({
     partyId: '',
@@ -153,6 +154,17 @@ export default function Dashboard() {
       updates[`/parties/${formData.partyId}/currentDebit`] = newDebit;
       updates[`/parties/${formData.partyId}/currentCredit`] = newCredit;
 
+      // Add to daily entries if it's a money transaction
+      if (formData.type === 'Money Given' || formData.type === 'Money Received') {
+        const dailyId = push(ref(rtdb, 'dailyEntries')).key;
+        updates[`/dailyEntries/${dailyId}`] = {
+          type: formData.type === 'Money Given' ? 'outgoing' : 'income',
+          amount: totalValue,
+          description: `Payment to/from ${partyData.name}`,
+          date: serverTimestamp(),
+        };
+      }
+
       if (formData.isDirectTrade && formData.relatedPartyId) {
         const relatedRef = ref(rtdb, `parties/${formData.relatedPartyId}`);
         const relatedSnapshot = await get(relatedRef);
@@ -184,6 +196,40 @@ export default function Dashboard() {
       });
     } catch (error) {
       const message = handleDatabaseError(error, OperationType.WRITE, 'transactions');
+      toast.error(message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSystemReset = async () => {
+    if (!resetConfirm) {
+      setResetConfirm(true);
+      toast.info('Click again to confirm full system reset');
+      setTimeout(() => setResetConfirm(false), 5000);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const updates: any = {};
+      
+      // Reset all party balances
+      parties.forEach(party => {
+        updates[`/parties/${party.id}/currentDebit`] = 0;
+        updates[`/parties/${party.id}/currentCredit`] = 0;
+      });
+
+      // Clear all other collections
+      updates['/transactions'] = null;
+      updates['/stockEntries'] = null;
+      updates['/dailyEntries'] = null;
+
+      await update(ref(rtdb), updates);
+      toast.success('System reset successful. All data cleared.');
+      setResetConfirm(false);
+    } catch (error) {
+      const message = handleDatabaseError(error, OperationType.WRITE, 'system-reset');
       toast.error(message);
     } finally {
       setLoading(false);
@@ -296,33 +342,7 @@ export default function Dashboard() {
       </Card>
 
       <div className="lg:col-span-2 space-y-6">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          <Card className="bg-blue-50 border-blue-100">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-xs font-medium text-blue-600 flex items-center gap-2">
-                <ArrowUpRight className="w-4 h-4" />
-                Total Debit (Parties)
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-xl font-bold">
-                {formatCurrency(parties.reduce((sum, p) => sum + (p.currentDebit || 0), 0))}
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="bg-green-50 border-green-100">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-xs font-medium text-green-600 flex items-center gap-2">
-                <ArrowDownLeft className="w-4 h-4" />
-                Total Credit (Parties)
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-xl font-bold">
-                {formatCurrency(parties.reduce((sum, p) => sum + (p.currentCredit || 0), 0))}
-              </div>
-            </CardContent>
-          </Card>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Card className="bg-orange-50 border-orange-100">
             <CardHeader className="pb-2">
               <CardTitle className="text-xs font-medium text-orange-600 flex items-center gap-2">
@@ -397,7 +417,7 @@ export default function Dashboard() {
                   transactions.map((t) => (
                     <TableRow key={t.id}>
                       <TableCell className="pl-6 text-xs">
-                        {t.date?.toDate ? format(t.date.toDate(), 'dd/MM HH:mm') : 'Pending...'}
+                        {t.date?.toDate ? format(t.date.toDate(), 'dd/MM HH:mm') : (typeof t.date === 'number' ? format(new Date(t.date), 'dd/MM HH:mm') : 'Pending...')}
                       </TableCell>
                       <TableCell className="font-medium">
                         {parties.find(p => p.id === t.partyId)?.name || 'Unknown'}
@@ -415,6 +435,27 @@ export default function Dashboard() {
                 )}
               </TableBody>
             </Table>
+          </CardContent>
+        </Card>
+
+        <Card className="border-destructive/20 bg-destructive/5">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-bold text-destructive flex items-center gap-2">
+              Danger Zone
+            </CardTitle>
+            <CardDescription className="text-xs">
+              This will permanently delete all transactions, stock, and reset all party balances to zero.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button 
+              variant={resetConfirm ? "destructive" : "outline"} 
+              className="w-full text-xs h-8"
+              onClick={handleSystemReset}
+              disabled={loading}
+            >
+              {resetConfirm ? "CONFIRM RESET" : "Reset All Data"}
+            </Button>
           </CardContent>
         </Card>
       </div>

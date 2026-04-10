@@ -91,7 +91,7 @@ export default function PurchaseStock() {
                   partyStock.map((entry) => (
                     <TableRow key={entry.id}>
                       <TableCell className="pl-6 text-sm">
-                        {entry.date?.toDate ? format(entry.date.toDate(), 'dd/MM/yyyy HH:mm') : 'Pending...'}
+                        {entry.date?.toDate ? format(entry.date.toDate(), 'dd/MM/yyyy HH:mm') : (typeof entry.date === 'number' ? format(new Date(entry.date), 'dd/MM/yyyy HH:mm') : 'Pending...')}
                       </TableCell>
                       <TableCell className="font-bold">{entry.material}</TableCell>
                       <TableCell className="text-muted-foreground">{entry.weightRaw}</TableCell>

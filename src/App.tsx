@@ -136,7 +136,7 @@ export default function App() {
                 <Warehouse className="w-8 h-8 text-primary" />
               </div>
             </div>
-            <CardTitle className="text-2xl font-bold tracking-tight">AluTrade Manager</CardTitle>
+            <CardTitle className="text-2xl font-bold tracking-tight">RK Enterprises</CardTitle>
             <CardDescription>
               {isSignUp ? 'Create a new account' : 'Sign in to your account'}
             </CardDescription>
@@ -252,7 +252,7 @@ export default function App() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Warehouse className="w-6 h-6 text-primary" />
-            <span className="font-bold text-xl tracking-tight">AluTrade</span>
+            <span className="font-bold text-xl tracking-tight">RK Enterprises</span>
           </div>
           <div className="flex items-center gap-4">
             <div className="hidden sm:block text-right">

@@ -134,6 +134,7 @@ export default function DailyTracker() {
               <Table>
                 <TableHeader>
                   <TableRow className="bg-muted/50">
+                    <TableHead>Date</TableHead>
                     <TableHead>Name</TableHead>
                     <TableHead className="text-right">Amount</TableHead>
                     <TableHead className="w-10"></TableHead>
@@ -142,13 +143,16 @@ export default function DailyTracker() {
                 <TableBody>
                   {incomeEntries.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={3} className="text-center py-4 text-muted-foreground text-sm italic">
+                      <TableCell colSpan={4} className="text-center py-4 text-muted-foreground text-sm italic">
                         No income recorded yet
                       </TableCell>
                     </TableRow>
                   ) : (
                     incomeEntries.map((e) => (
                       <TableRow key={e.id}>
+                        <TableCell className="text-[10px] text-muted-foreground">
+                          {e.date?.toDate ? format(e.date.toDate(), 'dd/MM HH:mm') : (typeof e.date === 'number' ? format(new Date(e.date), 'dd/MM HH:mm') : 'Pending...')}
+                        </TableCell>
                         <TableCell className="font-medium">{e.name}</TableCell>
                         <TableCell className="text-right font-bold text-blue-600">{formatCurrency(e.amount)}</TableCell>
                         <TableCell>
@@ -197,6 +201,7 @@ export default function DailyTracker() {
               <Table>
                 <TableHeader>
                   <TableRow className="bg-muted/50">
+                    <TableHead>Date</TableHead>
                     <TableHead>Name</TableHead>
                     <TableHead className="text-right">Amount</TableHead>
                     <TableHead className="w-10"></TableHead>
@@ -205,13 +210,16 @@ export default function DailyTracker() {
                 <TableBody>
                   {outgoingEntries.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={3} className="text-center py-4 text-muted-foreground text-sm italic">
+                      <TableCell colSpan={4} className="text-center py-4 text-muted-foreground text-sm italic">
                         No outgoing recorded yet
                       </TableCell>
                     </TableRow>
                   ) : (
                     outgoingEntries.map((e) => (
                       <TableRow key={e.id}>
+                        <TableCell className="text-[10px] text-muted-foreground">
+                          {e.date?.toDate ? format(e.date.toDate(), 'dd/MM HH:mm') : (typeof e.date === 'number' ? format(new Date(e.date), 'dd/MM HH:mm') : 'Pending...')}
+                        </TableCell>
                         <TableCell className="font-medium">{e.name}</TableCell>
                         <TableCell className="text-right font-bold text-orange-600">{formatCurrency(e.amount)}</TableCell>
                         <TableCell>
