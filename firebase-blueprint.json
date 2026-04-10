@@ -56,12 +56,25 @@
         "packagingType": { "type": "string", "enum": ["Gunny Bags", "Loose"] }
       },
       "required": ["date", "material", "weightRaw", "weightKg"]
+    },
+    "DailyEntry": {
+      "title": "Daily Entry",
+      "description": "Daily cash income or outgoing record",
+      "type": "object",
+      "properties": {
+        "date": { "type": "string", "format": "date-time" },
+        "type": { "type": "string", "enum": ["income", "outgoing"] },
+        "name": { "type": "string", "description": "Description of the entry" },
+        "amount": { "type": "number" }
+      },
+      "required": ["date", "type", "name", "amount"]
     }
   },
   "firestore": {
     "/parties/{partyId}": { "schema": "Party", "description": "Parties collection" },
     "/dailyPrices/{priceId}": { "schema": "DailyPrice", "description": "Daily prices collection" },
     "/transactions/{transactionId}": { "schema": "Transaction", "description": "Transactions collection" },
-    "/stockEntries/{entryId}": { "schema": "StockEntry", "description": "Godown stock entries" }
+    "/stockEntries/{entryId}": { "schema": "StockEntry", "description": "Godown stock entries" },
+    "/dailyEntries/{entryId}": { "schema": "DailyEntry", "description": "Daily cash tracker entries" }
   }
 }

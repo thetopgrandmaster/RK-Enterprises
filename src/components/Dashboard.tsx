@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
 import { collection, onSnapshot, addDoc, query, orderBy, serverTimestamp, doc, runTransaction, where, limit } from 'firebase/firestore';
-import { Transaction, Party, MaterialType, DailyPrice, TransactionType, StockEntry } from '../types';
+import { Transaction, Party, MaterialType, DailyPrice, TransactionType, StockEntry, DailyEntry } from '../types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -23,6 +23,7 @@ export default function Dashboard() {
   const [parties, setParties] = useState<Party[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [stockEntries, setStockEntries] = useState<StockEntry[]>([]);
+  const [dailyEntries, setDailyEntries] = useState<DailyEntry[]>([]);
   const [loading, setLoading] = useState(false);
 
   const [formData, setFormData] = useState({
@@ -51,15 +52,23 @@ export default function Dashboard() {
       setStockEntries(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as StockEntry)));
     });
 
+    const unsubscribeDaily = onSnapshot(collection(db, 'dailyEntries'), (snapshot) => {
+      setDailyEntries(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as DailyEntry)));
+    });
+
     return () => {
       unsubscribeParties();
       unsubscribeTrans();
       unsubscribeStock();
+      unsubscribeDaily();
     };
   }, []);
 
   const totalGodownWeight = stockEntries.reduce((sum, e) => sum + e.weightKg, 0) - 
     transactions.filter(t => t.type === 'Material Sent' && !t.isDirectTrade).reduce((sum, t) => sum + (t.weight || 0), 0);
+
+  const totalDailyIncome = dailyEntries.filter(e => e.type === 'income').reduce((sum, e) => sum + e.amount, 0);
+  const totalDailyOutgoing = dailyEntries.filter(e => e.type === 'outgoing').reduce((sum, e) => sum + e.amount, 0);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -297,12 +306,12 @@ export default function Dashboard() {
       </Card>
 
       <div className="lg:col-span-2 space-y-6">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           <Card className="bg-blue-50 border-blue-100">
             <CardHeader className="pb-2">
               <CardTitle className="text-xs font-medium text-blue-600 flex items-center gap-2">
                 <ArrowUpRight className="w-4 h-4" />
-                Total Debit
+                Total Debit (Parties)
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -315,7 +324,7 @@ export default function Dashboard() {
             <CardHeader className="pb-2">
               <CardTitle className="text-xs font-medium text-green-600 flex items-center gap-2">
                 <ArrowDownLeft className="w-4 h-4" />
-                Total Credit
+                Total Credit (Parties)
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -337,15 +346,33 @@ export default function Dashboard() {
               </div>
             </CardContent>
           </Card>
-          <Card className="bg-purple-50 border-purple-100">
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Card className="bg-indigo-50 border-indigo-100">
             <CardHeader className="pb-2">
-              <CardTitle className="text-xs font-medium text-purple-600 flex items-center gap-2">
-                <Package className="w-4 h-4" />
-                Active Parties
+              <CardTitle className="text-xs font-medium text-indigo-600 flex items-center gap-2">
+                <ArrowUpRight className="w-4 h-4" />
+                Daily Total Income
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-xl font-bold">{parties.length}</div>
+              <div className="text-xl font-bold">
+                {formatCurrency(totalDailyIncome)}
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="bg-rose-50 border-rose-100">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-xs font-medium text-rose-600 flex items-center gap-2">
+                <ArrowDownLeft className="w-4 h-4" />
+                Daily Total Outgoing
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-xl font-bold">
+                {formatCurrency(totalDailyOutgoing)}
+              </div>
             </CardContent>
           </Card>
         </div>
