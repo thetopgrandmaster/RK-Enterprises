@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { db } from '../firebase';
-import { collection, onSnapshot, addDoc, query, orderBy, serverTimestamp, deleteDoc, doc, where } from 'firebase/firestore';
+import { rtdb } from '../firebase';
+import { ref, onValue, push, set, remove, serverTimestamp } from 'firebase/database';
 import { DailyEntry } from '../types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -10,7 +10,7 @@ import { toast } from 'sonner';
 import { Plus, Trash2, ArrowUpCircle, ArrowDownCircle } from 'lucide-react';
 import { formatCurrency } from '../lib/utils';
 import { format } from 'date-fns';
-import { handleFirestoreError, OperationType } from '../lib/firestore-errors';
+import { handleDatabaseError, OperationType } from '../lib/database-errors';
 
 export default function DailyTracker() {
   const [entries, setEntries] = useState<DailyEntry[]>([]);
@@ -20,15 +20,19 @@ export default function DailyTracker() {
   const [outgoingAmount, setOutgoingAmount] = useState('');
 
   useEffect(() => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
-    // We'll show all entries for now, or maybe just today's? 
-    // The user said "Daily", usually implies today's entries.
-    // Let's fetch all and sort by date desc.
-    const q = query(collection(db, 'dailyEntries'), orderBy('date', 'desc'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      setEntries(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as DailyEntry)));
+    const dailyRef = ref(rtdb, 'dailyEntries');
+    const unsubscribe = onValue(dailyRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        const entriesList = Object.entries(data).map(([id, value]: [string, any]) => ({
+          id,
+          ...value,
+        })) as DailyEntry[];
+        // Sort by date desc client-side
+        setEntries(entriesList.sort((a, b) => (b.date || 0) - (a.date || 0)));
+      } else {
+        setEntries([]);
+      }
     });
     return () => unsubscribe();
   }, []);
@@ -43,7 +47,8 @@ export default function DailyTracker() {
     }
 
     try {
-      await addDoc(collection(db, 'dailyEntries'), {
+      const newEntryRef = push(ref(rtdb, 'dailyEntries'));
+      await set(newEntryRef, {
         type,
         name,
         amount,
@@ -59,17 +64,17 @@ export default function DailyTracker() {
       }
       toast.success(`${type === 'income' ? 'Income' : 'Outgoing'} recorded`);
     } catch (error) {
-      const message = handleFirestoreError(error, OperationType.CREATE, 'dailyEntries');
+      const message = handleDatabaseError(error, OperationType.CREATE, 'dailyEntries');
       toast.error(message);
     }
   };
 
   const handleDelete = async (id: string) => {
     try {
-      await deleteDoc(doc(db, 'dailyEntries', id));
+      await remove(ref(rtdb, `dailyEntries/${id}`));
       toast.success('Entry deleted');
     } catch (error) {
-      const message = handleFirestoreError(error, OperationType.DELETE, `dailyEntries/${id}`);
+      const message = handleDatabaseError(error, OperationType.DELETE, `dailyEntries/${id}`);
       toast.error(message);
     }
   };

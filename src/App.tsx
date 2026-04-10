@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import { auth, db } from './firebase';
+import { auth } from './firebase';
 import { 
   onAuthStateChanged, 
   signOut, 
@@ -14,7 +14,6 @@ import {
   signInWithPopup,
   GoogleAuthProvider
 } from 'firebase/auth';
-import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { db } from '../firebase';
-import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, query, orderBy, serverTimestamp, where } from 'firebase/firestore';
+import { rtdb } from '../firebase';
+import { ref, onValue, push, set, update, remove, query, orderByChild, equalTo, serverTimestamp } from 'firebase/database';
 import { Party, Transaction } from '../types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,7 +14,7 @@ import { toast } from 'sonner';
 import { Plus, Pencil, Trash2, Search, ArrowLeft } from 'lucide-react';
 import { formatCurrency } from '../lib/utils';
 import { format } from 'date-fns';
-import { handleFirestoreError, OperationType } from '../lib/firestore-errors';
+import { handleDatabaseError, OperationType } from '../lib/database-errors';
 
 export default function Parties() {
   const [parties, setParties] = useState<Party[]>([]);
@@ -31,10 +31,19 @@ export default function Parties() {
   const [partyTransactions, setPartyTransactions] = useState<Transaction[]>([]);
 
   useEffect(() => {
-    const q = query(collection(db, 'parties'), orderBy('name'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const partiesData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Party));
-      setParties(partiesData);
+    const partiesRef = ref(rtdb, 'parties');
+    const unsubscribe = onValue(partiesRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        const partiesList = Object.entries(data).map(([id, value]: [string, any]) => ({
+          id,
+          ...value,
+        })) as Party[];
+        // Sort by name client-side for simplicity
+        setParties(partiesList.sort((a, b) => a.name.localeCompare(b.name)));
+      } else {
+        setParties([]);
+      }
     });
     return () => unsubscribe();
   }, []);
@@ -45,14 +54,21 @@ export default function Parties() {
       return;
     }
 
-    const q = query(
-      collection(db, 'transactions'),
-      where('partyId', '==', selectedPartyForHistory.id),
-      orderBy('date', 'desc')
-    );
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      setPartyTransactions(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Transaction)));
+    const transactionsRef = ref(rtdb, 'transactions');
+    const q = query(transactionsRef, orderByChild('partyId'), equalTo(selectedPartyForHistory.id));
+    
+    const unsubscribe = onValue(q, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        const transList = Object.entries(data).map(([id, value]: [string, any]) => ({
+          id,
+          ...value,
+        })) as Transaction[];
+        // Sort by date desc client-side
+        setPartyTransactions(transList.sort((a, b) => (b.date || 0) - (a.date || 0)));
+      } else {
+        setPartyTransactions([]);
+      }
     });
 
     return () => unsubscribe();
@@ -62,14 +78,15 @@ export default function Parties() {
     e.preventDefault();
     try {
       if (editingParty) {
-        await updateDoc(doc(db, 'parties', editingParty.id!), {
+        await update(ref(rtdb, `parties/${editingParty.id}`), {
           name: formData.name,
           type: formData.type,
           openingBalance: Number(formData.openingBalance),
         });
         toast.success('Party updated successfully');
       } else {
-        await addDoc(collection(db, 'parties'), {
+        const newPartyRef = push(ref(rtdb, 'parties'));
+        await set(newPartyRef, {
           ...formData,
           openingBalance: Number(formData.openingBalance),
           currentDebit: 0,
@@ -81,7 +98,7 @@ export default function Parties() {
       setIsDialogOpen(false);
       resetForm();
     } catch (error) {
-      const message = handleFirestoreError(error, editingParty ? OperationType.UPDATE : OperationType.CREATE, 'parties');
+      const message = handleDatabaseError(error, editingParty ? OperationType.UPDATE : OperationType.CREATE, 'parties');
       toast.error(message);
     }
   };
@@ -103,10 +120,10 @@ export default function Parties() {
 
   const handleDelete = async (id: string) => {
     try {
-      await deleteDoc(doc(db, 'parties', id));
+      await remove(ref(rtdb, `parties/${id}`));
       toast.success('Party deleted successfully');
     } catch (error) {
-      const message = handleFirestoreError(error, OperationType.DELETE, `parties/${id}`);
+      const message = handleDatabaseError(error, OperationType.DELETE, `parties/${id}`);
       toast.error(message);
     }
   };

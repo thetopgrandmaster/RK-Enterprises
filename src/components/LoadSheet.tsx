@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { db } from '../firebase';
-import { collection, onSnapshot, query, orderBy, doc } from 'firebase/firestore';
+import { rtdb } from '../firebase';
+import { ref, onValue } from 'firebase/database';
 import { StockEntry, MaterialType } from '../types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -15,14 +15,24 @@ export default function LoadSheet() {
   const [selectedIds, setSelectedIds] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
-    const q = query(collection(db, 'stockEntries'), orderBy('date', 'desc'));
-    const unsubscribeEntries = onSnapshot(q, (snapshot) => {
-      setEntries(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as StockEntry)));
+    const stockRef = ref(rtdb, 'stockEntries');
+    const unsubscribeEntries = onValue(stockRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        const list = Object.entries(data).map(([id, val]: [string, any]) => ({ id, ...val })) as StockEntry[];
+        setEntries(list.sort((a, b) => (b.date || 0) - (a.date || 0)));
+      } else {
+        setEntries([]);
+      }
     });
 
-    const unsubscribeSettings = onSnapshot(doc(db, 'settings', 'loadSheet'), (snapshot) => {
-      if (snapshot.exists()) {
-        setSelectedIds(snapshot.data().selectedIds || {});
+    const settingsRef = ref(rtdb, 'settings/loadSheet');
+    const unsubscribeSettings = onValue(settingsRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        setSelectedIds(data.selectedIds || {});
+      } else {
+        setSelectedIds({});
       }
     });
 

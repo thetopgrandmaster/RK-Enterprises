@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { getFirestore, getDocFromServer, doc } from 'firebase/firestore';
+import { getDatabase } from 'firebase/database';
 import { getAnalytics } from "firebase/analytics";
 import firebaseConfig from '../firebase-applet-config.json';
 
@@ -12,10 +12,11 @@ const config = {
   storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || firebaseConfig.storageBucket,
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || firebaseConfig.messagingSenderId,
   appId: import.meta.env.VITE_FIREBASE_APP_ID || firebaseConfig.appId,
+  databaseURL: import.meta.env.VITE_FIREBASE_DATABASE_URL || `https://${import.meta.env.VITE_FIREBASE_PROJECT_ID || firebaseConfig.projectId}-default-rtdb.firebaseio.com`,
 };
 
 const app = initializeApp(config);
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+export const rtdb = getDatabase(app);
 export const auth = getAuth(app);
 
 // Initialize Analytics only if supported
@@ -28,18 +29,3 @@ if (typeof window !== 'undefined') {
   }
 }
 export { analytics };
-
-// Check if Firestore is enabled and working
-async function checkFirestore() {
-  try {
-    // Try a simple read to verify Firestore is enabled in the project
-    await getDocFromServer(doc(db, '_connection_test_', 'test'));
-  } catch (error: any) {
-    if (error.code === 'permission-denied') {
-      console.warn("Firestore access denied. Please check your security rules.");
-    } else if (error.message?.includes('offline') || error.code === 'unavailable') {
-      console.error("CRITICAL: Firestore is not enabled or the project is incorrect. Data will NOT be saved.");
-    }
-  }
-}
-checkFirestore();

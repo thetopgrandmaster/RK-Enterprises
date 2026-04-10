@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { db } from '../firebase';
-import { collection, onSnapshot, query, orderBy, setDoc, doc, deleteDoc, writeBatch } from 'firebase/firestore';
+import { rtdb } from '../firebase';
+import { ref, onValue, set, update, remove } from 'firebase/database';
 import { StockEntry, MaterialType, Transaction } from '../types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -9,6 +9,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { formatWeight } from '../lib/utils';
 import { Warehouse, FileText, CheckSquare, Square, Trash2, ExternalLink, ArrowRight } from 'lucide-react';
 import { toast } from 'sonner';
+import { handleDatabaseError, OperationType } from '../lib/database-errors';
 
 const MATERIALS: MaterialType[] = ['AA', 'CK', 'AW', 'AC', 'LS', 'BC', 'AWC'];
 
@@ -18,17 +19,25 @@ export default function GodownStock() {
   const [selectedEntries, setSelectedEntries] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
-    const unsubscribeEntries = onSnapshot(collection(db, 'stockEntries'), (snapshot) => {
-      setEntries(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as StockEntry)));
+    const stockRef = ref(rtdb, 'stockEntries');
+    const unsubscribeEntries = onValue(stockRef, (snapshot) => {
+      const data = snapshot.val();
+      setEntries(data ? Object.entries(data).map(([id, val]: [string, any]) => ({ id, ...val })) : []);
     });
 
-    const unsubscribeTransactions = onSnapshot(collection(db, 'transactions'), (snapshot) => {
-      setTransactions(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Transaction)));
+    const transRef = ref(rtdb, 'transactions');
+    const unsubscribeTransactions = onValue(transRef, (snapshot) => {
+      const data = snapshot.val();
+      setTransactions(data ? Object.entries(data).map(([id, val]: [string, any]) => ({ id, ...val })) : []);
     });
 
-    const unsubscribeLoadSheet = onSnapshot(doc(db, 'settings', 'loadSheet'), (snapshot) => {
-      if (snapshot.exists()) {
-        setSelectedEntries(snapshot.data().selectedIds || {});
+    const settingsRef = ref(rtdb, 'settings/loadSheet');
+    const unsubscribeLoadSheet = onValue(settingsRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        setSelectedEntries(data.selectedIds || {});
+      } else {
+        setSelectedEntries({});
       }
     });
 
@@ -43,9 +52,10 @@ export default function GodownStock() {
     const newSelected = { ...selectedEntries, [id]: !selectedEntries[id] };
     setSelectedEntries(newSelected);
     try {
-      await setDoc(doc(db, 'settings', 'loadSheet'), { selectedIds: newSelected }, { merge: true });
+      await update(ref(rtdb, 'settings/loadSheet'), { selectedIds: newSelected });
     } catch (error) {
-      console.error("Error saving selection:", error);
+      const message = handleDatabaseError(error, OperationType.UPDATE, 'settings/loadSheet');
+      toast.error(message);
     }
   };
 
@@ -56,7 +66,7 @@ export default function GodownStock() {
       newSelected[e.id!] = true;
     });
     setSelectedEntries(newSelected);
-    await setDoc(doc(db, 'settings', 'loadSheet'), { selectedIds: newSelected }, { merge: true });
+    await update(ref(rtdb, 'settings/loadSheet'), { selectedIds: newSelected });
   };
 
   const deselectAllForMaterial = async (material: MaterialType) => {
@@ -66,7 +76,7 @@ export default function GodownStock() {
       newSelected[e.id!] = false;
     });
     setSelectedEntries(newSelected);
-    await setDoc(doc(db, 'settings', 'loadSheet'), { selectedIds: newSelected }, { merge: true });
+    await update(ref(rtdb, 'settings/loadSheet'), { selectedIds: newSelected });
   };
 
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -74,12 +84,12 @@ export default function GodownStock() {
 
   const deleteEntry = async (id: string) => {
     try {
-      await deleteDoc(doc(db, 'stockEntries', id));
+      await remove(ref(rtdb, `stockEntries/${id}`));
       toast.success('Entry deleted');
       setDeletingId(null);
     } catch (error) {
-      console.error("Delete error:", error);
-      toast.error('Failed to delete entry');
+      const message = handleDatabaseError(error, OperationType.DELETE, `stockEntries/${id}`);
+      toast.error(message);
     }
   };
 
@@ -92,16 +102,16 @@ export default function GodownStock() {
         return;
       }
       
-      const batch = writeBatch(db);
+      const updates: any = {};
       materialEntries.forEach(e => {
-        batch.delete(doc(db, 'stockEntries', e.id!));
+        updates[`/stockEntries/${e.id}`] = null;
       });
-      await batch.commit();
+      await update(ref(rtdb), updates);
       toast.success(`All ${material} stock deleted`);
       setDeletingMaterial(null);
     } catch (error) {
-      console.error("Bulk delete error:", error);
-      toast.error('Failed to delete material stock');
+      const message = handleDatabaseError(error, OperationType.DELETE, 'stockEntries');
+      toast.error(message);
     }
   };
 
@@ -145,9 +155,14 @@ export default function GodownStock() {
             size="sm" 
             className="text-muted-foreground hover:text-destructive"
             onClick={async () => {
-              setSelectedEntries({});
-              await setDoc(doc(db, 'settings', 'loadSheet'), { selectedIds: {} });
-              toast.success('All selections cleared');
+              try {
+                setSelectedEntries({});
+                await update(ref(rtdb, 'settings/loadSheet'), { selectedIds: {} });
+                toast.success('All selections cleared');
+              } catch (error) {
+                const message = handleDatabaseError(error, OperationType.UPDATE, 'settings/loadSheet');
+                toast.error(message);
+              }
             }}
           >
             Clear All

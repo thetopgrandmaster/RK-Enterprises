@@ -70,11 +70,12 @@
       "required": ["date", "type", "name", "amount"]
     }
   },
-  "firestore": {
-    "/parties/{partyId}": { "schema": "Party", "description": "Parties collection" },
-    "/dailyPrices/{priceId}": { "schema": "DailyPrice", "description": "Daily prices collection" },
-    "/transactions/{transactionId}": { "schema": "Transaction", "description": "Transactions collection" },
-    "/stockEntries/{entryId}": { "schema": "StockEntry", "description": "Godown stock entries" },
-    "/dailyEntries/{entryId}": { "schema": "DailyEntry", "description": "Daily cash tracker entries" }
+  "rtdb": {
+    "/parties": { "schema": "Party", "description": "Parties collection" },
+    "/dailyPrices": { "schema": "DailyPrice", "description": "Daily prices collection" },
+    "/transactions": { "schema": "Transaction", "description": "Transactions collection" },
+    "/stockEntries": { "schema": "StockEntry", "description": "Godown stock entries" },
+    "/dailyEntries": { "schema": "DailyEntry", "description": "Daily cash tracker entries" },
+    "/settings/loadSheet": { "schema": "object", "description": "Selected items for load sheet" }
   }
 }

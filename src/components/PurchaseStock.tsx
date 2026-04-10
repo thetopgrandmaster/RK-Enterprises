@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { db } from '../firebase';
-import { collection, onSnapshot, query, orderBy, where } from 'firebase/firestore';
+import { rtdb } from '../firebase';
+import { ref, onValue, query, orderByChild, equalTo } from 'firebase/database';
 import { Party, StockEntry } from '../types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -17,9 +17,16 @@ export default function PurchaseStock() {
   const [search, setSearch] = useState('');
 
   useEffect(() => {
-    const q = query(collection(db, 'parties'), where('type', '==', 'seller'), orderBy('name'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      setParties(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Party)));
+    const partiesRef = ref(rtdb, 'parties');
+    const q = query(partiesRef, orderByChild('type'), equalTo('seller'));
+    const unsubscribe = onValue(q, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        const list = Object.entries(data).map(([id, val]: [string, any]) => ({ id, ...val })) as Party[];
+        setParties(list.sort((a, b) => a.name.localeCompare(b.name)));
+      } else {
+        setParties([]);
+      }
     });
     return () => unsubscribe();
   }, []);
@@ -30,14 +37,17 @@ export default function PurchaseStock() {
       return;
     }
 
-    const q = query(
-      collection(db, 'stockEntries'),
-      where('sourcePartyId', '==', selectedParty.id),
-      orderBy('date', 'desc')
-    );
+    const stockRef = ref(rtdb, 'stockEntries');
+    const q = query(stockRef, orderByChild('sourcePartyId'), equalTo(selectedParty.id));
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      setPartyStock(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as StockEntry)));
+    const unsubscribe = onValue(q, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        const list = Object.entries(data).map(([id, val]: [string, any]) => ({ id, ...val })) as StockEntry[];
+        setPartyStock(list.sort((a, b) => (b.date || 0) - (a.date || 0)));
+      } else {
+        setPartyStock([]);
+      }
     });
 
     return () => unsubscribe();

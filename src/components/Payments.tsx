@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { db } from '../firebase';
-import { collection, onSnapshot, query, orderBy, serverTimestamp, runTransaction, doc } from 'firebase/firestore';
+import { rtdb } from '../firebase';
+import { ref, onValue, push, set, update, query, orderByChild, limitToLast, serverTimestamp, get } from 'firebase/database';
 import { Party, Transaction, TransactionType } from '../types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,7 +12,7 @@ import { toast } from 'sonner';
 import { IndianRupee, ArrowUpRight, ArrowDownLeft, History } from 'lucide-react';
 import { formatCurrency } from '../lib/utils';
 import { format } from 'date-fns';
-import { handleFirestoreError, OperationType } from '../lib/firestore-errors';
+import { handleDatabaseError, OperationType } from '../lib/database-errors';
 
 export default function Payments() {
   const [parties, setParties] = useState<Party[]>([]);
@@ -27,19 +27,28 @@ export default function Payments() {
   });
 
   useEffect(() => {
-    const unsubscribeParties = onSnapshot(collection(db, 'parties'), (snapshot) => {
-      setParties(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Party)));
+    const partiesRef = ref(rtdb, 'parties');
+    const unsubscribeParties = onValue(partiesRef, (snapshot) => {
+      const data = snapshot.val();
+      setParties(data ? Object.entries(data).map(([id, val]: [string, any]) => ({ id, ...val })) : []);
     });
 
-    const qTrans = query(
-      collection(db, 'transactions'), 
-      orderBy('date', 'desc')
-    );
+    const transRef = ref(rtdb, 'transactions');
+    const qTrans = query(transRef, limitToLast(50));
     
-    const unsubscribeTrans = onSnapshot(qTrans, (snapshot) => {
-      const allTrans = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Transaction));
-      // Filter for money transactions only
-      setTransactions(allTrans.filter(t => t.type === 'Money Given' || t.type === 'Money Received'));
+    const unsubscribeTrans = onValue(qTrans, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        const allTrans = Object.entries(data).map(([id, val]: [string, any]) => ({ id, ...val })) as Transaction[];
+        // Filter for money transactions only and sort desc
+        setTransactions(
+          allTrans
+            .filter(t => t.type === 'Money Given' || t.type === 'Money Received')
+            .sort((a, b) => (b.date || 0) - (a.date || 0))
+        );
+      } else {
+        setTransactions([]);
+      }
     });
 
     return () => {
@@ -57,46 +66,43 @@ export default function Payments() {
 
     setLoading(true);
     try {
-      await runTransaction(db, async (transaction) => {
-        const partyDoc = await transaction.get(doc(db, 'parties', formData.partyId));
-        if (!partyDoc.exists()) throw new Error('Party not found');
+      const partyRef = ref(rtdb, `parties/${formData.partyId}`);
+      const partySnapshot = await get(partyRef);
+      if (!partySnapshot.exists()) throw new Error('Party not found');
 
-        const partyData = partyDoc.data() as Party;
-        let { currentDebit = 0, currentCredit = 0 } = partyData;
+      const partyData = partySnapshot.val() as Party;
+      let { currentDebit = 0, currentCredit = 0 } = partyData;
 
-        if (formData.type === 'Money Given') {
-          // I pay money -> Increases what they owe me (or reduces what I owe)
-          currentDebit += formData.amount;
-        } else if (formData.type === 'Money Received') {
-          // I receive money -> Increases what I owe them (or reduces what they owe)
-          currentCredit += formData.amount;
-        }
+      if (formData.type === 'Money Given') {
+        currentDebit += formData.amount;
+      } else if (formData.type === 'Money Received') {
+        currentCredit += formData.amount;
+      }
 
-        // Record the transaction
-        const newTransRef = doc(collection(db, 'transactions'));
-        transaction.set(newTransRef, {
-          partyId: formData.partyId,
-          partyName: partyData.name,
-          type: formData.type,
-          amount: formData.amount,
-          totalValue: formData.amount, // Ensure totalValue is present for security rules
-          date: serverTimestamp(),
-          createdAt: serverTimestamp(),
-          adjustAgainstAdvance: formData.adjustAgainstAdvance
-        });
+      const updates: any = {};
+      const transId = push(ref(rtdb, 'transactions')).key;
+      
+      updates[`/transactions/${transId}`] = {
+        partyId: formData.partyId,
+        partyName: partyData.name,
+        type: formData.type,
+        amount: formData.amount,
+        totalValue: formData.amount,
+        date: serverTimestamp(),
+        createdAt: serverTimestamp(),
+        adjustAgainstAdvance: formData.adjustAgainstAdvance
+      };
 
-        // Update party balance
-        transaction.update(doc(db, 'parties', formData.partyId), {
-          currentDebit,
-          currentCredit,
-          lastUpdated: serverTimestamp()
-        });
-      });
+      updates[`/parties/${formData.partyId}/currentDebit`] = currentDebit;
+      updates[`/parties/${formData.partyId}/currentCredit`] = currentCredit;
+      updates[`/parties/${formData.partyId}/lastUpdated`] = serverTimestamp();
+
+      await update(ref(rtdb), updates);
 
       toast.success('Payment recorded successfully');
       setFormData({ ...formData, amount: 0, adjustAgainstAdvance: false });
     } catch (error) {
-      const message = handleFirestoreError(error, OperationType.WRITE, 'transactions');
+      const message = handleDatabaseError(error, OperationType.WRITE, 'transactions');
       toast.error(message);
     } finally {
       setLoading(false);

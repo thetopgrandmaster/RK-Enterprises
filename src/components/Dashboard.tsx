@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { db } from '../firebase';
-import { collection, onSnapshot, addDoc, query, orderBy, serverTimestamp, doc, runTransaction, where, limit } from 'firebase/firestore';
+import { rtdb } from '../firebase';
+import { ref, onValue, push, set, update, query, orderByChild, limitToLast, serverTimestamp, get } from 'firebase/database';
 import { Transaction, Party, MaterialType, DailyPrice, TransactionType, StockEntry, DailyEntry } from '../types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,7 +15,7 @@ import { toast } from 'sonner';
 import { Plus, ArrowUpRight, ArrowDownLeft, Wallet, Package, History, Warehouse as GodownIcon } from 'lucide-react';
 import { formatCurrency, formatWeight } from '../lib/utils';
 import { format } from 'date-fns';
-import { handleFirestoreError, OperationType } from '../lib/firestore-errors';
+import { handleDatabaseError, OperationType } from '../lib/database-errors';
 
 const MATERIALS: MaterialType[] = ['AA', 'CK', 'AW', 'AC', 'LS', 'BC', 'AWC'];
 
@@ -39,21 +39,30 @@ export default function Dashboard() {
   });
 
   useEffect(() => {
-    const unsubscribeParties = onSnapshot(collection(db, 'parties'), (snapshot) => {
-      setParties(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Party)));
+    const partiesRef = ref(rtdb, 'parties');
+    const unsubscribeParties = onValue(partiesRef, (snapshot) => {
+      const data = snapshot.val();
+      setParties(data ? Object.entries(data).map(([id, val]: [string, any]) => ({ id, ...val })) : []);
     });
 
-    const qTrans = query(collection(db, 'transactions'), orderBy('date', 'desc'), limit(10));
-    const unsubscribeTrans = onSnapshot(qTrans, (snapshot) => {
-      setTransactions(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Transaction)));
+    const transRef = ref(rtdb, 'transactions');
+    const qTrans = query(transRef, limitToLast(10));
+    const unsubscribeTrans = onValue(qTrans, (snapshot) => {
+      const data = snapshot.val();
+      const list = data ? Object.entries(data).map(([id, val]: [string, any]) => ({ id, ...val })) : [];
+      setTransactions(list.sort((a, b) => (b.date || 0) - (a.date || 0)));
     });
 
-    const unsubscribeStock = onSnapshot(collection(db, 'stockEntries'), (snapshot) => {
-      setStockEntries(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as StockEntry)));
+    const stockRef = ref(rtdb, 'stockEntries');
+    const unsubscribeStock = onValue(stockRef, (snapshot) => {
+      const data = snapshot.val();
+      setStockEntries(data ? Object.entries(data).map(([id, val]: [string, any]) => ({ id, ...val })) : []);
     });
 
-    const unsubscribeDaily = onSnapshot(collection(db, 'dailyEntries'), (snapshot) => {
-      setDailyEntries(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as DailyEntry)));
+    const dailyRef = ref(rtdb, 'dailyEntries');
+    const unsubscribeDaily = onValue(dailyRef, (snapshot) => {
+      const data = snapshot.val();
+      setDailyEntries(data ? Object.entries(data).map(([id, val]: [string, any]) => ({ id, ...val })) : []);
     });
 
     return () => {
@@ -93,88 +102,76 @@ export default function Dashboard() {
     }
 
     try {
-      await runTransaction(db, async (transaction) => {
-        const partyRef = doc(db, 'parties', formData.partyId);
-        const partyDoc = await transaction.get(partyRef);
-        if (!partyDoc.exists()) throw new Error("Party does not exist!");
+      const partyRef = ref(rtdb, `parties/${formData.partyId}`);
+      const partySnapshot = await get(partyRef);
+      if (!partySnapshot.exists()) throw new Error("Party does not exist!");
 
-        const partyData = partyDoc.data() as Party;
-        let newDebit = partyData.currentDebit || 0;
-        let newCredit = partyData.currentCredit || 0;
+      const partyData = partySnapshot.val() as Party;
+      let newDebit = partyData.currentDebit || 0;
+      let newCredit = partyData.currentCredit || 0;
 
-        // Debit = Increases what they owe me (Material Sent, Money Given)
-        // Credit = Increases what I owe them (Material Received, Money Received)
+      if (formData.type === 'Money Given') {
+        newDebit += totalValue;
+      } else if (formData.type === 'Money Received') {
+        newCredit += totalValue;
+      } else if (formData.type === 'Material Received') {
+        newCredit += totalValue;
+      } else if (formData.type === 'Material Sent') {
+        newDebit += totalValue;
+      }
 
-        if (formData.type === 'Money Given') {
-          newDebit += totalValue;
-        } else if (formData.type === 'Money Received') {
-          newCredit += totalValue;
-        } else if (formData.type === 'Material Received') {
-          newCredit += totalValue;
-        } else if (formData.type === 'Material Sent') {
-          newDebit += totalValue;
-        }
+      const updates: any = {};
+      const transId = push(ref(rtdb, 'transactions')).key;
+      
+      updates[`/transactions/${transId}`] = {
+        partyId: formData.partyId,
+        type: formData.type,
+        material: (formData.type === 'Material Received' || formData.type === 'Material Sent') ? formData.material : null,
+        weight: (formData.type === 'Material Received' || formData.type === 'Material Sent') ? formData.weight : null,
+        price: price,
+        totalValue: totalValue,
+        isDirectTrade: formData.isDirectTrade,
+        relatedPartyId: formData.relatedPartyId,
+        packagingType: (formData.type === 'Material Received' || formData.type === 'Material Sent') ? formData.packagingType : null,
+        date: serverTimestamp(),
+      };
 
-        // Record the transaction
-        const transRef = doc(collection(db, 'transactions'));
-        transaction.set(transRef, {
-          partyId: formData.partyId,
-          type: formData.type,
-          material: (formData.type === 'Material Received' || formData.type === 'Material Sent') ? formData.material : null,
-          weight: (formData.type === 'Material Received' || formData.type === 'Material Sent') ? formData.weight : null,
-          price: price,
-          totalValue: totalValue,
-          isDirectTrade: formData.isDirectTrade,
-          relatedPartyId: formData.relatedPartyId,
-          packagingType: (formData.type === 'Material Received' || formData.type === 'Material Sent') ? formData.packagingType : null,
+      if (formData.type === 'Material Received' && !formData.isDirectTrade) {
+        const stockId = push(ref(rtdb, 'stockEntries')).key;
+        updates[`/stockEntries/${stockId}`] = {
+          material: formData.material,
+          weightRaw: formData.weight.toString(),
+          weightKg: formData.weight,
+          sourcePartyId: formData.partyId,
+          packagingType: formData.packagingType,
+          transactionId: transId,
           date: serverTimestamp(),
-        });
+        };
+      }
 
-        // Automatically add to Godown if Material Received and NOT direct trade
-        if (formData.type === 'Material Received' && !formData.isDirectTrade) {
-          const stockRef = doc(collection(db, 'stockEntries'));
-          transaction.set(stockRef, {
-            material: formData.material,
-            weightRaw: formData.weight.toString(), // Using weight as raw for now
-            weightKg: formData.weight,
-            sourcePartyId: formData.partyId,
-            packagingType: formData.packagingType,
-            transactionId: transRef.id,
-            date: serverTimestamp(),
-          });
-        }
+      updates[`/parties/${formData.partyId}/currentDebit`] = newDebit;
+      updates[`/parties/${formData.partyId}/currentCredit`] = newCredit;
 
-        // Update party balances
-        transaction.update(partyRef, {
-          currentDebit: newDebit,
-          currentCredit: newCredit,
-        });
+      if (formData.isDirectTrade && formData.relatedPartyId) {
+        const relatedRef = ref(rtdb, `parties/${formData.relatedPartyId}`);
+        const relatedSnapshot = await get(relatedRef);
+        if (relatedSnapshot.exists()) {
+          const relatedData = relatedSnapshot.val() as Party;
+          let relDebit = relatedData.currentDebit || 0;
+          let relCredit = relatedData.currentCredit || 0;
 
-        // If direct trade, update the other party too
-        if (formData.isDirectTrade && formData.relatedPartyId) {
-          const relatedRef = doc(db, 'parties', formData.relatedPartyId);
-          const relatedDoc = await transaction.get(relatedRef);
-          if (relatedDoc.exists()) {
-            const relatedData = relatedDoc.data() as Party;
-            let relDebit = relatedData.currentDebit || 0;
-            let relCredit = relatedData.currentCredit || 0;
-
-            // If I'm receiving material from Seller and sending to Buyer directly:
-            // Seller (partyId) gets Credit (I owe them)
-            // Buyer (relatedPartyId) gets Debit (They owe me)
-            if (formData.type === 'Material Received') {
-              relDebit += totalValue;
-            } else if (formData.type === 'Material Sent') {
-              relCredit += totalValue;
-            }
-
-            transaction.update(relatedRef, {
-              currentDebit: relDebit,
-              currentCredit: relCredit,
-            });
+          if (formData.type === 'Material Received') {
+            relDebit += totalValue;
+          } else if (formData.type === 'Material Sent') {
+            relCredit += totalValue;
           }
+
+          updates[`/parties/${formData.relatedPartyId}/currentDebit`] = relDebit;
+          updates[`/parties/${formData.relatedPartyId}/currentCredit`] = relCredit;
         }
-      });
+      }
+
+      await update(ref(rtdb), updates);
 
       toast.success('Transaction recorded successfully');
       setFormData({
@@ -185,7 +182,7 @@ export default function Dashboard() {
         relatedPartyId: '',
       });
     } catch (error) {
-      const message = handleFirestoreError(error, OperationType.WRITE, 'transactions');
+      const message = handleDatabaseError(error, OperationType.WRITE, 'transactions');
       toast.error(message);
     } finally {
       setLoading(false);

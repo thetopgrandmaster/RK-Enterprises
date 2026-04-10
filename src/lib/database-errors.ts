@@ -9,7 +9,7 @@ export enum OperationType {
   WRITE = 'write',
 }
 
-export interface FirestoreErrorInfo {
+export interface DatabaseErrorInfo {
   error: string;
   operationType: OperationType;
   path: string | null;
@@ -28,8 +28,8 @@ export interface FirestoreErrorInfo {
   }
 }
 
-export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
-  const errInfo: FirestoreErrorInfo = {
+export function handleDatabaseError(error: unknown, operationType: OperationType, path: string | null) {
+  const errInfo: DatabaseErrorInfo = {
     error: error instanceof Error ? error.message : String(error),
     authInfo: {
       userId: auth.currentUser?.uid,
@@ -47,7 +47,7 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
     operationType,
     path
   };
-  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  console.error('Database Error: ', JSON.stringify(errInfo));
   // Return a user-friendly message but keep the JSON for the agent to see in logs
   const message = error instanceof Error ? error.message : String(error);
   if (message.includes('permission-denied') || message.includes('insufficient permissions')) {
