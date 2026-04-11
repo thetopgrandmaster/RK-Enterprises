@@ -32,6 +32,7 @@ export default function Dashboard() {
     type: 'Material Received' as TransactionType,
     material: 'AA' as MaterialType,
     weight: 0,
+    stockWeight: 0,
     price: 0,
     amount: 0,
     isDirectTrade: false,
@@ -139,6 +140,7 @@ export default function Dashboard() {
         type: formData.type,
         material: (formData.type === 'Material Received' || formData.type === 'Material Sent') ? formData.material : null,
         weight: (formData.type === 'Material Received' || formData.type === 'Material Sent') ? formData.weight : null,
+        stockWeight: (formData.type === 'Material Received' || formData.type === 'Material Sent') ? (formData.stockWeight || formData.weight) : null,
         price: price,
         totalValue: totalValue,
         isDirectTrade: formData.isDirectTrade,
@@ -149,10 +151,12 @@ export default function Dashboard() {
 
       if (formData.type === 'Material Received' && !formData.isDirectTrade) {
         const stockId = push(ref(rtdb, `users/${userId}/stockEntries`)).key;
+        const finalStockWeight = formData.stockWeight || formData.weight;
         updates[`/users/${userId}/stockEntries/${stockId}`] = {
           material: formData.material,
-          weightRaw: formData.weight.toString(),
-          weightKg: formData.weight,
+          weightRaw: finalStockWeight.toString(),
+          weightKg: finalStockWeight,
+          originalWeight: formData.weight,
           sourcePartyId: formData.partyId,
           packagingType: formData.packagingType,
           transactionId: transId,
@@ -199,6 +203,7 @@ export default function Dashboard() {
       setFormData({
         ...formData,
         weight: 0,
+        stockWeight: 0,
         amount: 0,
         isDirectTrade: false,
         relatedPartyId: '',
@@ -260,9 +265,15 @@ export default function Dashboard() {
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label>Price (₹ per Kg)</Label>
-                  <Input type="number" step="0.01" value={formData.price || ''} onChange={e => setFormData({...formData, price: Number(e.target.value)})} required />
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Stock Weight</Label>
+                    <Input type="number" step="0.001" value={formData.stockWeight || ''} onChange={e => setFormData({...formData, stockWeight: Number(e.target.value)})} placeholder="Defaults to Weight" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Price (₹ per Kg)</Label>
+                    <Input type="number" step="0.01" value={formData.price || ''} onChange={e => setFormData({...formData, price: Number(e.target.value)})} required />
+                  </div>
                 </div>
 
                 <div className="space-y-2">
@@ -378,6 +389,7 @@ export default function Dashboard() {
                   <TableHead className="pl-6">Date</TableHead>
                   <TableHead>Party</TableHead>
                   <TableHead>Type</TableHead>
+                  <TableHead>Weight</TableHead>
                   <TableHead className="text-right">Value</TableHead>
                 </TableRow>
               </TableHeader>
@@ -401,6 +413,16 @@ export default function Dashboard() {
                         <Badge variant={t.type.includes('Material') ? 'secondary' : 'outline'} className="text-[10px]">
                           {t.type}
                         </Badge>
+                      </TableCell>
+                      <TableCell className="text-xs font-mono">
+                        {t.weight ? (
+                          <div className="flex flex-col">
+                            <span>{formatWeight(t.weight)}</span>
+                            {t.stockWeight && t.stockWeight !== t.weight && (
+                              <span className="text-[10px] text-muted-foreground">Stock: {formatWeight(t.stockWeight)}</span>
+                            )}
+                          </div>
+                        ) : '-'}
                       </TableCell>
                       <TableCell className="text-right font-mono font-bold">
                         {formatCurrency(t.totalValue)}

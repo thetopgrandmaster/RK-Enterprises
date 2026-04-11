@@ -159,8 +159,8 @@ export default function Payments() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Money Given">Money Given (I Pay)</SelectItem>
-                  <SelectItem value="Money Received">Money Received (I Receive)</SelectItem>
+                  <SelectItem value="Money Given">Money Given</SelectItem>
+                  <SelectItem value="Money Received">Money Received</SelectItem>
                 </SelectContent>
               </Select>
             </div>

@@ -99,7 +99,14 @@ export default function PurchaseStock() {
                       </TableCell>
                       <TableCell className="font-bold">{entry.material}</TableCell>
                       <TableCell className="text-muted-foreground">{entry.weightRaw}</TableCell>
-                      <TableCell className="text-right font-mono font-bold">{formatWeight(entry.weightKg)}</TableCell>
+                      <TableCell className="text-right font-mono font-bold">
+                        <div className="flex flex-col">
+                          <span>{formatWeight(entry.weightKg)}</span>
+                          {entry.originalWeight && entry.originalWeight !== entry.weightKg && (
+                            <span className="text-[10px] text-muted-foreground font-normal">Orig: {formatWeight(entry.originalWeight)}</span>
+                          )}
+                        </div>
+                      </TableCell>
                       <TableCell className="text-xs">{entry.packagingType}</TableCell>
                     </TableRow>
                   ))

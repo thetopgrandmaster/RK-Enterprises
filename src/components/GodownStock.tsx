@@ -144,7 +144,7 @@ export default function GodownStock() {
 
     const subtractions = transactions
       .filter(t => t.material === material && t.type === 'Material Sent' && !t.isDirectTrade)
-      .map(t => t.weight || 0);
+      .map(t => t.stockWeight || t.weight || 0);
     
     const totalAdded = additions.reduce((sum, a) => sum + a.weightKg, 0);
     const totalSent = subtractions.reduce((sum, s) => sum + s, 0);

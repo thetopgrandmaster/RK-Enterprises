@@ -26,6 +26,7 @@ export interface Transaction {
   type: TransactionType;
   material?: MaterialType;
   weight?: number;
+  stockWeight?: number;
   price?: number;
   totalValue: number;
   amount?: number;
@@ -41,6 +42,7 @@ export interface StockEntry {
   material: MaterialType;
   weightRaw: string; // e.g., "35 x 150"
   weightKg: number; // e.g., 35.150
+  originalWeight?: number;
   sourcePartyId: string;
   packagingType: 'Gunny Bags' | 'Loose';
   transactionId?: string;
