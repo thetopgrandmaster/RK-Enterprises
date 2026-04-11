@@ -13,7 +13,7 @@ import { Separator } from '@/components/ui/separator';
 import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 import { Plus, ArrowUpRight, ArrowDownLeft, Wallet, Package, History, Warehouse as GodownIcon } from 'lucide-react';
-import { formatCurrency, formatWeight } from '../lib/utils';
+import { formatCurrency, formatWeight, customRound } from '../lib/utils';
 import { format } from 'date-fns';
 import { handleDatabaseError, OperationType } from '../lib/database-errors';
 import { PartySearch } from './PartySearch';
@@ -104,7 +104,7 @@ export default function Dashboard() {
       : 0;
 
     const totalValue = (formData.type === 'Material Received' || formData.type === 'Material Sent')
-      ? formData.weight * price
+      ? customRound(formData.weight * price)
       : formData.amount;
 
     if (isNaN(totalValue)) {

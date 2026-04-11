@@ -47,3 +47,12 @@ export function formatCurrency(amount: number): string {
     maximumFractionDigits: 0,
   }).format(amount);
 }
+
+export function customRound(value: number): number {
+  const floor = Math.floor(value);
+  const decimal = value - floor;
+  if (decimal >= 0.9) {
+    return Math.ceil(value);
+  }
+  return floor;
+}

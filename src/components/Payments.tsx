@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 import { IndianRupee, ArrowUpRight, ArrowDownLeft, History } from 'lucide-react';
-import { formatCurrency } from '../lib/utils';
+import { formatCurrency, customRound } from '../lib/utils';
 import { format } from 'date-fns';
 import { handleDatabaseError, OperationType } from '../lib/database-errors';
 import { PartySearch } from './PartySearch';
@@ -83,10 +83,12 @@ export default function Payments() {
       const partyData = partySnapshot.val() as Party;
       let { currentDebit = 0, currentCredit = 0 } = partyData;
 
+      const finalAmount = customRound(formData.amount);
+
       if (formData.type === 'Money Given') {
-        currentDebit += formData.amount;
+        currentDebit += finalAmount;
       } else if (formData.type === 'Money Received') {
-        currentCredit += formData.amount;
+        currentCredit += finalAmount;
       }
 
       const updates: any = {};
@@ -96,8 +98,8 @@ export default function Payments() {
         partyId: formData.partyId,
         partyName: partyData.name,
         type: formData.type,
-        amount: formData.amount,
-        totalValue: formData.amount,
+        amount: finalAmount,
+        totalValue: finalAmount,
         date: serverTimestamp(),
         createdAt: serverTimestamp(),
       };
@@ -110,7 +112,7 @@ export default function Payments() {
       const dailyId = push(ref(rtdb, `users/${userId}/dailyEntries`)).key;
       updates[`/users/${userId}/dailyEntries/${dailyId}`] = {
         type: formData.type === 'Money Given' ? 'outgoing' : 'income',
-        amount: formData.amount,
+        amount: finalAmount,
         name: partyData.name,
         date: serverTimestamp(),
       };

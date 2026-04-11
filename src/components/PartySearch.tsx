@@ -1,6 +1,6 @@
 import * as React from "react"
 import { Check, ChevronsUpDown } from "lucide-react"
-import { cn } from "@/src/lib/utils"
+import { cn, formatCurrency } from "../lib/utils"
 import { buttonVariants } from "@/components/ui/button"
 import {
   Command,
@@ -36,7 +36,12 @@ export function PartySearch({
 }: PartySearchProps) {
   const [open, setOpen] = React.useState(false)
 
+  const getBalance = (party: Party) => {
+    return (party.openingBalance || 0) + (party.currentDebit || 0) - (party.currentCredit || 0)
+  }
+
   const selectedParty = parties.find((party) => party.id === value)
+  const selectedBalance = selectedParty ? getBalance(selectedParty) : 0
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -51,9 +56,18 @@ export function PartySearch({
         )}
       >
         {selectedParty ? (
-          <span className="truncate">
-            {selectedParty.name} ({selectedParty.type})
-          </span>
+          <div className="flex items-center justify-between w-full overflow-hidden">
+            <span className="truncate mr-2">
+              {selectedParty.name} ({selectedParty.type})
+            </span>
+            <span className={cn(
+              "text-xs font-bold shrink-0",
+              selectedBalance >= 0 ? "text-blue-600" : "text-orange-600"
+            )}>
+              {formatCurrency(Math.abs(selectedBalance))}
+              {selectedBalance >= 0 ? " Cr" : " Dr"}
+            </span>
+          </div>
         ) : (
           <span className="text-muted-foreground">{placeholder}</span>
         )}
@@ -80,9 +94,22 @@ export function PartySearch({
                       value === party.id ? "opacity-100" : "opacity-0"
                     )}
                   />
-                  <div className="flex flex-col">
-                    <span>{party.name}</span>
-                    <span className="text-xs text-muted-foreground uppercase">{party.type}</span>
+                  <div className="flex items-center justify-between w-full">
+                    <div className="flex flex-col">
+                      <span>{party.name}</span>
+                      <span className="text-xs text-muted-foreground uppercase">{party.type}</span>
+                    </div>
+                    <div className="text-right">
+                      <p className={cn(
+                        "text-xs font-bold",
+                        getBalance(party) >= 0 ? "text-blue-600" : "text-orange-600"
+                      )}>
+                        {formatCurrency(Math.abs(getBalance(party)))}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground">
+                        {getBalance(party) >= 0 ? "Cr" : "Dr"}
+                      </p>
+                    </div>
                   </div>
                 </CommandItem>
               ))}
