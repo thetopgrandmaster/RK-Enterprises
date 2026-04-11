@@ -231,6 +231,7 @@ export default function Dashboard() {
                 parties={parties} 
                 value={formData.partyId} 
                 onValueChange={val => setFormData({...formData, partyId: val})} 
+                showBalance={false}
               />
             </div>
 
@@ -309,6 +310,7 @@ export default function Dashboard() {
                       value={formData.relatedPartyId}
                       onValueChange={val => setFormData({...formData, relatedPartyId: val})}
                       placeholder="Select related party"
+                      showBalance={false}
                     />
                   </div>
                 )}

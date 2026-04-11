@@ -24,6 +24,7 @@ interface PartySearchProps {
   placeholder?: string
   disabled?: boolean
   className?: string
+  showBalance?: boolean
 }
 
 export function PartySearch({
@@ -33,6 +34,7 @@ export function PartySearch({
   placeholder = "Select party...",
   disabled = false,
   className,
+  showBalance = true,
 }: PartySearchProps) {
   const [open, setOpen] = React.useState(false)
 
@@ -60,13 +62,15 @@ export function PartySearch({
             <span className="truncate mr-2">
               {selectedParty.name} ({selectedParty.type})
             </span>
-            <span className={cn(
-              "text-xs font-bold shrink-0",
-              selectedBalance >= 0 ? "text-blue-600" : "text-orange-600"
-            )}>
-              {formatCurrency(Math.abs(selectedBalance))}
-              {selectedBalance >= 0 ? " Cr" : " Dr"}
-            </span>
+            {showBalance && (
+              <span className={cn(
+                "text-xs font-bold shrink-0",
+                selectedBalance >= 0 ? "text-blue-600" : "text-orange-600"
+              )}>
+                {formatCurrency(Math.abs(selectedBalance))}
+                {selectedBalance >= 0 ? " Cr" : " Dr"}
+              </span>
+            )}
           </div>
         ) : (
           <span className="text-muted-foreground">{placeholder}</span>
@@ -99,17 +103,19 @@ export function PartySearch({
                       <span>{party.name}</span>
                       <span className="text-xs text-muted-foreground uppercase">{party.type}</span>
                     </div>
-                    <div className="text-right">
-                      <p className={cn(
-                        "text-xs font-bold",
-                        getBalance(party) >= 0 ? "text-blue-600" : "text-orange-600"
-                      )}>
-                        {formatCurrency(Math.abs(getBalance(party)))}
-                      </p>
-                      <p className="text-[10px] text-muted-foreground">
-                        {getBalance(party) >= 0 ? "Cr" : "Dr"}
-                      </p>
-                    </div>
+                    {showBalance && (
+                      <div className="text-right">
+                        <p className={cn(
+                          "text-xs font-bold",
+                          getBalance(party) >= 0 ? "text-blue-600" : "text-orange-600"
+                        )}>
+                          {formatCurrency(Math.abs(getBalance(party)))}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground">
+                          {getBalance(party) >= 0 ? "Cr" : "Dr"}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </CommandItem>
               ))}
