@@ -41,18 +41,24 @@ export function parseWeight(raw: string): number {
 }
 
 export function formatCurrency(amount: number): string {
+  const rounded = customRound(amount);
   return new Intl.NumberFormat('en-IN', {
     style: 'currency',
     currency: 'INR',
     maximumFractionDigits: 0,
-  }).format(amount);
+  }).format(rounded);
 }
 
 export function customRound(value: number): number {
-  const floor = Math.floor(value);
-  const decimal = value - floor;
+  const sign = value < 0 ? -1 : 1;
+  const absValue = Math.abs(value);
+  const floor = Math.floor(absValue);
+  const decimal = absValue - floor;
+  
+  // Round up only if decimal is 0.9 or greater
   if (decimal >= 0.9) {
-    return Math.ceil(value);
+    return sign * Math.ceil(absValue);
   }
-  return floor;
+  // Otherwise round down (towards zero for magnitude)
+  return sign * floor;
 }

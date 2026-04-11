@@ -1,6 +1,6 @@
 import * as React from "react"
 import { Check, ChevronsUpDown } from "lucide-react"
-import { cn, formatCurrency } from "../lib/utils"
+import { cn, formatCurrency, customRound } from "../lib/utils"
 import { buttonVariants } from "@/components/ui/button"
 import {
   Command,
@@ -43,7 +43,8 @@ export function PartySearch({
   }
 
   const selectedParty = parties.find((party) => party.id === value)
-  const selectedBalance = selectedParty ? getBalance(selectedParty) : 0
+  const rawSelectedBalance = selectedParty ? getBalance(selectedParty) : 0
+  const selectedBalance = customRound(rawSelectedBalance)
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -62,13 +63,13 @@ export function PartySearch({
             <span className="truncate mr-2">
               {selectedParty.name} ({selectedParty.type})
             </span>
-            {showBalance && (
+            {showBalance && selectedBalance !== 0 && (
               <span className={cn(
                 "text-xs font-bold shrink-0",
-                selectedBalance >= 0 ? "text-blue-600" : "text-orange-600"
+                selectedBalance > 0 ? "text-blue-600" : "text-orange-600"
               )}>
-                {formatCurrency(Math.abs(selectedBalance))}
-                {selectedBalance >= 0 ? " Cr" : " Dr"}
+                {formatCurrency(rawSelectedBalance)}
+                {selectedBalance > 0 ? " Cr" : " Dr"}
               </span>
             )}
           </div>
@@ -103,16 +104,16 @@ export function PartySearch({
                       <span>{party.name}</span>
                       <span className="text-xs text-muted-foreground uppercase">{party.type}</span>
                     </div>
-                    {showBalance && (
+                    {showBalance && customRound(getBalance(party)) !== 0 && (
                       <div className="text-right">
                         <p className={cn(
                           "text-xs font-bold",
-                          getBalance(party) >= 0 ? "text-blue-600" : "text-orange-600"
+                          customRound(getBalance(party)) > 0 ? "text-blue-600" : "text-orange-600"
                         )}>
-                          {formatCurrency(Math.abs(getBalance(party)))}
+                          {formatCurrency(getBalance(party))}
                         </p>
                         <p className="text-[10px] text-muted-foreground">
-                          {getBalance(party) >= 0 ? "Cr" : "Dr"}
+                          {customRound(getBalance(party)) > 0 ? "Cr" : "Dr"}
                         </p>
                       </div>
                     )}

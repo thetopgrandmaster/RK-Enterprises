@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { Plus, Pencil, Trash2, Search, ArrowLeft } from 'lucide-react';
-import { formatCurrency } from '../lib/utils';
+import { formatCurrency, customRound } from '../lib/utils';
 import { format } from 'date-fns';
 import { handleDatabaseError, OperationType } from '../lib/database-errors';
 
@@ -370,7 +370,8 @@ export default function Parties() {
                   </TableRow>
                 ) : (
                   filteredParties.map((party) => {
-                    const runningBalance = party.openingBalance + (party.currentDebit || 0) - (party.currentCredit || 0);
+                    const rawBalance = party.openingBalance + (party.currentDebit || 0) - (party.currentCredit || 0);
+                    const runningBalance = customRound(rawBalance);
                     return (
                       <TableRow key={party.id}>
                         <TableCell 
@@ -383,12 +384,16 @@ export default function Parties() {
                         <TableCell className="text-right">{formatCurrency(party.openingBalance)}</TableCell>
                         <TableCell className="text-right text-blue-600">{formatCurrency(party.currentDebit || 0)}</TableCell>
                         <TableCell className="text-right text-orange-600">{formatCurrency(party.currentCredit || 0)}</TableCell>
-                        <TableCell className={`text-right font-bold ${runningBalance >= 0 ? 'text-blue-600' : 'text-orange-600'}`}>
-                          {formatCurrency(runningBalance)}
+                        <TableCell className={`text-right font-bold ${runningBalance > 0 ? 'text-blue-600' : runningBalance < 0 ? 'text-orange-600' : 'text-muted-foreground'}`}>
+                          {formatCurrency(rawBalance)}
                         </TableCell>
                         <TableCell className="text-center">
-                          <span className={`text-[10px] font-bold uppercase px-2 py-1 rounded-full ${runningBalance >= 0 ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'}`}>
-                            {runningBalance >= 0 ? 'They Owe' : 'I Owe'}
+                          <span className={`text-[10px] font-bold uppercase px-2 py-1 rounded-full ${
+                            runningBalance > 0 ? 'bg-blue-100 text-blue-700' : 
+                            runningBalance < 0 ? 'bg-orange-100 text-orange-700' : 
+                            'bg-gray-100 text-gray-600'
+                          }`}>
+                            {runningBalance > 0 ? 'They Owe' : runningBalance < 0 ? 'I Owe' : 'Settled'}
                           </span>
                         </TableCell>
                         <TableCell>
