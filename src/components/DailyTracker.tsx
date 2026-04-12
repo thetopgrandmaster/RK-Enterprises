@@ -4,16 +4,20 @@ import { ref, onValue, push, set, remove, serverTimestamp } from 'firebase/datab
 import { DailyEntry } from '../types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { toast } from 'sonner';
 import { Plus, Trash2, ArrowUpCircle, ArrowDownCircle } from 'lucide-react';
-import { formatCurrency } from '../lib/utils';
-import { format } from 'date-fns';
+import { cn, formatCurrency } from '../lib/utils';
+import { format, isToday, isSameDay } from 'date-fns';
 import { handleDatabaseError, OperationType } from '../lib/database-errors';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { Calendar as CalendarIcon, ChevronLeft, ChevronRight } from 'lucide-react';
 
 export default function DailyTracker() {
   const [entries, setEntries] = useState<DailyEntry[]>([]);
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [incomeName, setIncomeName] = useState('');
   const [incomeAmount, setIncomeAmount] = useState('');
   const [outgoingName, setOutgoingName] = useState('');
@@ -32,7 +36,11 @@ export default function DailyTracker() {
           ...value,
         })) as DailyEntry[];
         // Sort by date desc client-side
-        setEntries(entriesList.sort((a, b) => (b.date || 0) - (a.date || 0)));
+        setEntries(entriesList.sort((a, b) => {
+          const dateA = a.date?.toDate ? a.date.toDate().getTime() : (typeof a.date === 'number' ? a.date : 0);
+          const dateB = b.date?.toDate ? b.date.toDate().getTime() : (typeof b.date === 'number' ? b.date : 0);
+          return dateB - dateA;
+        }));
       } else {
         setEntries([]);
       }
@@ -57,11 +65,23 @@ export default function DailyTracker() {
       }
 
       const newEntryRef = push(ref(rtdb, `users/${userId}/dailyEntries`));
+      
+      // If adding for today, use serverTimestamp, otherwise use the selected date at current time
+      let entryDate;
+      if (isToday(selectedDate)) {
+        entryDate = serverTimestamp();
+      } else {
+        const now = new Date();
+        const d = new Date(selectedDate);
+        d.setHours(now.getHours(), now.getMinutes(), now.getSeconds());
+        entryDate = d.getTime();
+      }
+
       await set(newEntryRef, {
         type,
         name,
         amount,
-        date: serverTimestamp(),
+        date: entryDate,
       });
       
       if (type === 'income') {
@@ -90,23 +110,73 @@ export default function DailyTracker() {
     }
   };
 
-  const incomeEntries = entries.filter(e => e.type === 'income');
-  const outgoingEntries = entries.filter(e => e.type === 'outgoing');
+  const getEntryDate = (date: any) => {
+    if (!date) return new Date();
+    if (date.toDate) return date.toDate();
+    return new Date(date);
+  };
+
+  const filteredEntries = entries.filter(e => isSameDay(getEntryDate(e.date), selectedDate));
+  
+  const incomeEntries = filteredEntries.filter(e => e.type === 'income');
+  const outgoingEntries = filteredEntries.filter(e => e.type === 'outgoing');
 
   const totalIncome = incomeEntries.reduce((sum, e) => sum + e.amount, 0);
   const totalOutgoing = outgoingEntries.reduce((sum, e) => sum + e.amount, 0);
 
+  const changeDate = (days: number) => {
+    const newDate = new Date(selectedDate);
+    newDate.setDate(newDate.getDate() + days);
+    setSelectedDate(newDate);
+  };
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold tracking-tight">Daily Cash Tracker</h2>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="space-y-1">
+          <h2 className="text-2xl font-bold tracking-tight">Daily Cash Tracker</h2>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => changeDate(-1)}>
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            
+            <Popover>
+              <PopoverTrigger className={cn(buttonVariants({ variant: "outline" }), "h-8 justify-start text-left font-normal w-[180px]", !selectedDate && "text-muted-foreground")}>
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {selectedDate ? format(selectedDate, "PPP") : <span>Pick a date</span>}
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={selectedDate}
+                  onSelect={(date) => date && setSelectedDate(date)}
+                  initialFocus
+                />
+              </PopoverContent>
+            </Popover>
+
+            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => changeDate(1)} disabled={isToday(selectedDate)}>
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+            
+            {!isToday(selectedDate) && (
+              <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => setSelectedDate(new Date())}>
+                Today
+              </Button>
+            )}
+          </div>
+        </div>
         <div className="flex gap-4">
           <Card className="px-4 py-2 bg-blue-50 border-blue-200">
-            <span className="text-xs text-blue-600 font-bold uppercase">Total Income</span>
+            <span className="text-xs text-blue-600 font-bold uppercase">
+              {isToday(selectedDate) ? "Today's Income" : "Income Total"}
+            </span>
             <p className="text-lg font-black text-blue-700">{formatCurrency(totalIncome)}</p>
           </Card>
           <Card className="px-4 py-2 bg-orange-50 border-orange-200">
-            <span className="text-xs text-orange-600 font-bold uppercase">Total Outgoing</span>
+            <span className="text-xs text-orange-600 font-bold uppercase">
+              {isToday(selectedDate) ? "Today's Outgoing" : "Outgoing Total"}
+            </span>
             <p className="text-lg font-black text-orange-700">{formatCurrency(totalOutgoing)}</p>
           </Card>
         </div>
@@ -154,8 +224,9 @@ export default function DailyTracker() {
                 <TableBody>
                   {incomeEntries.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={4} className="text-center py-4 text-muted-foreground text-sm italic">
-                        No income recorded yet
+                      <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                        <ArrowUpCircle className="w-8 h-8 mx-auto mb-2 opacity-20" />
+                        <p className="text-sm italic">No income recorded for {isToday(selectedDate) ? "today" : format(selectedDate, "PP")}</p>
                       </TableCell>
                     </TableRow>
                   ) : (
@@ -221,8 +292,9 @@ export default function DailyTracker() {
                 <TableBody>
                   {outgoingEntries.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={4} className="text-center py-4 text-muted-foreground text-sm italic">
-                        No outgoing recorded yet
+                      <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                        <ArrowDownCircle className="w-8 h-8 mx-auto mb-2 opacity-20" />
+                        <p className="text-sm italic">No outgoing recorded for {isToday(selectedDate) ? "today" : format(selectedDate, "PP")}</p>
                       </TableCell>
                     </TableRow>
                   ) : (
