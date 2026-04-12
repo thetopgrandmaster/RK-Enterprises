@@ -21,6 +21,7 @@ export default function Parties() {
   const [search, setSearch] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingParty, setEditingParty] = useState<Party | null>(null);
+  const [isDeleteMode, setIsDeleteMode] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     type: 'seller' as 'seller' | 'buyer',
@@ -398,7 +399,18 @@ export default function Parties() {
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <h2 className="text-2xl font-bold tracking-tight">Party Ledgers</h2>
+        <div className="flex items-center gap-4">
+          <h2 className="text-2xl font-bold tracking-tight">Party Ledgers</h2>
+          <Button 
+            variant={isDeleteMode ? "destructive" : "outline"} 
+            size="sm" 
+            onClick={() => setIsDeleteMode(!isDeleteMode)}
+            className="flex items-center gap-2"
+          >
+            <Trash2 className="w-4 h-4" />
+            {isDeleteMode ? "Exit Delete Mode" : "Delete Mode"}
+          </Button>
+        </div>
         <Dialog open={isDialogOpen} onOpenChange={(open) => {
           setIsDialogOpen(open);
           if (!open) resetForm();
@@ -524,9 +536,11 @@ export default function Parties() {
                             <Button variant="ghost" size="icon" onClick={() => handleEdit(party)}>
                               <Pencil className="w-4 h-4" />
                             </Button>
-                            <Button variant="ghost" size="icon" className="text-destructive" onClick={() => handleDelete(party.id!)}>
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
+                            {isDeleteMode && (
+                              <Button variant="ghost" size="icon" className="text-destructive" onClick={() => handleDelete(party.id!)}>
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            )}
                           </div>
                         </TableCell>
                       </TableRow>

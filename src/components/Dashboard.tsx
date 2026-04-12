@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { rtdb, auth } from '../firebase';
 import { ref, onValue, push, set, update, query, orderByChild, limitToLast, serverTimestamp, get } from 'firebase/database';
 import { Transaction, Party, MaterialType, DailyPrice, TransactionType, StockEntry, DailyEntry } from '../types';
@@ -26,6 +26,11 @@ export default function Dashboard() {
   const [stockEntries, setStockEntries] = useState<StockEntry[]>([]);
   const [dailyEntries, setDailyEntries] = useState<DailyEntry[]>([]);
   const [loading, setLoading] = useState(false);
+
+  const weightRef = useRef<HTMLInputElement>(null);
+  const stockWeightRef = useRef<HTMLInputElement>(null);
+  const priceRef = useRef<HTMLInputElement>(null);
+  const amountRef = useRef<HTMLInputElement>(null);
 
   const [formData, setFormData] = useState({
     partyId: '',
@@ -204,6 +209,7 @@ export default function Dashboard() {
         ...formData,
         weight: 0,
         stockWeight: 0,
+        price: 0,
         amount: 0,
         isDirectTrade: false,
         relatedPartyId: '',
@@ -213,6 +219,16 @@ export default function Dashboard() {
       toast.error(message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent, nextRef?: React.RefObject<HTMLInputElement>, prevRef?: React.RefObject<HTMLInputElement>) => {
+    if (e.key === 'ArrowDown' && nextRef?.current) {
+      e.preventDefault();
+      nextRef.current.focus();
+    } else if (e.key === 'ArrowUp' && prevRef?.current) {
+      e.preventDefault();
+      prevRef.current.focus();
     }
   };
 
@@ -262,18 +278,42 @@ export default function Dashboard() {
                   </div>
                   <div className="space-y-2">
                     <Label>Weight (Kg)</Label>
-                    <Input type="number" step="0.001" value={formData.weight || ''} onChange={e => setFormData({...formData, weight: Number(e.target.value)})} required />
+                    <Input 
+                      ref={weightRef}
+                      type="number" 
+                      step="0.001" 
+                      value={formData.weight || ''} 
+                      onChange={e => setFormData({...formData, weight: Number(e.target.value)})} 
+                      onKeyDown={(e) => handleKeyDown(e, stockWeightRef)}
+                      required 
+                    />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Stock Weight</Label>
-                    <Input type="number" step="0.001" value={formData.stockWeight || ''} onChange={e => setFormData({...formData, stockWeight: Number(e.target.value)})} placeholder="Defaults to Weight" />
+                    <Input 
+                      ref={stockWeightRef}
+                      type="number" 
+                      step="0.001" 
+                      value={formData.stockWeight || ''} 
+                      onChange={e => setFormData({...formData, stockWeight: Number(e.target.value)})} 
+                      onKeyDown={(e) => handleKeyDown(e, priceRef, weightRef)}
+                      placeholder="Defaults to Weight" 
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label>Price (₹ per Kg)</Label>
-                    <Input type="number" step="0.01" value={formData.price || ''} onChange={e => setFormData({...formData, price: Number(e.target.value)})} required />
+                    <Input 
+                      ref={priceRef}
+                      type="number" 
+                      step="0.01" 
+                      value={formData.price || ''} 
+                      onChange={e => setFormData({...formData, price: Number(e.target.value)})} 
+                      onKeyDown={(e) => handleKeyDown(e, undefined, stockWeightRef)}
+                      required 
+                    />
                   </div>
                 </div>
 
@@ -318,7 +358,13 @@ export default function Dashboard() {
             ) : (
               <div className="space-y-2">
                 <Label>Amount (₹)</Label>
-                <Input type="number" value={formData.amount} onChange={e => setFormData({...formData, amount: Number(e.target.value)})} required />
+                <Input 
+                  ref={amountRef}
+                  type="number" 
+                  value={formData.amount || ''} 
+                  onChange={e => setFormData({...formData, amount: Number(e.target.value)})} 
+                  required 
+                />
               </div>
             )}
 
