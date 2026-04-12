@@ -34,6 +34,7 @@ export interface Transaction {
   isDirectTrade?: boolean;
   relatedPartyId?: string;
   packagingType?: 'Gunny Bags' | 'Loose';
+  taxName?: string;
 }
 
 export interface StockEntry {

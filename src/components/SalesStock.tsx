@@ -20,6 +20,7 @@ export default function SalesStock() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [search, setSearch] = useState('');
   const [taxAmount, setTaxAmount] = useState<number>(0);
+  const [taxName, setTaxName] = useState<string>('');
   const [isTaxDialogOpen, setIsTaxDialogOpen] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -88,6 +89,7 @@ export default function SalesStock() {
         type: 'Tax',
         amount: taxAmount,
         totalValue: taxAmount,
+        taxName: taxName || 'Tax',
         date: serverTimestamp(),
         createdAt: serverTimestamp(),
       };
@@ -99,6 +101,7 @@ export default function SalesStock() {
       toast.success('Tax added successfully');
       setIsTaxDialogOpen(false);
       setTaxAmount(0);
+      setTaxName('');
     } catch (error) {
       const message = handleDatabaseError(error, OperationType.WRITE, 'transactions');
       toast.error(message);
@@ -135,6 +138,15 @@ export default function SalesStock() {
                 <DialogTitle>Add Tax for {selectedParty.name}</DialogTitle>
               </DialogHeader>
               <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label htmlFor="taxName">Tax Name</Label>
+                  <Input 
+                    id="taxName" 
+                    value={taxName} 
+                    onChange={e => setTaxName(e.target.value)}
+                    placeholder="e.g. GST, Service Tax"
+                  />
+                </div>
                 <div className="space-y-2">
                   <Label htmlFor="tax">Tax Amount (₹)</Label>
                   <Input 
@@ -216,7 +228,7 @@ export default function SalesStock() {
                             </div>
                           ) : (
                             <span className={isTax ? "text-red-600 font-bold" : isPayment ? "text-blue-600 font-bold" : ""}>
-                              {t.type}
+                              {isTax ? (t.taxName || 'Tax') : t.type}
                             </span>
                           )}
                         </TableCell>
