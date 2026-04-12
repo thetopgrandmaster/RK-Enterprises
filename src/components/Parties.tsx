@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { rtdb, auth } from '../firebase';
-import { ref, onValue, push, set, update, remove, query, orderByChild, equalTo, serverTimestamp } from 'firebase/database';
+import { ref, onValue, push, set, update, remove, query, orderByChild, equalTo, serverTimestamp, get } from 'firebase/database';
 import { Party, Transaction } from '../types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -29,6 +29,7 @@ export default function Parties() {
 
   const [selectedPartyForHistory, setSelectedPartyForHistory] = useState<Party | null>(null);
   const [partyTransactions, setPartyTransactions] = useState<Transaction[]>([]);
+  const [deletingTransId, setDeletingTransId] = useState<string | null>(null);
 
   useEffect(() => {
     const userId = auth.currentUser?.uid;
@@ -143,6 +144,94 @@ export default function Parties() {
     }
   };
 
+  const handleDeleteTransaction = async (transaction: Transaction) => {
+    try {
+      const userId = auth.currentUser?.uid;
+      if (!userId) return;
+
+      const updates: any = {};
+      const totalValue = transaction.totalValue || transaction.amount || 0;
+
+      // 1. Reverse Main Party Balance
+      const partyRef = ref(rtdb, `users/${userId}/parties/${transaction.partyId}`);
+      const partySnap = await get(partyRef);
+      if (partySnap.exists()) {
+        const partyData = partySnap.val() as Party;
+        let newDebit = partyData.currentDebit || 0;
+        let newCredit = partyData.currentCredit || 0;
+
+        if (transaction.type === 'Money Given' || transaction.type === 'Material Sent' || transaction.type === 'Tax') {
+          newDebit = Math.max(0, newDebit - totalValue);
+        } else if (transaction.type === 'Money Received' || transaction.type === 'Material Received') {
+          newCredit = Math.max(0, newCredit - totalValue);
+        }
+        updates[`/users/${userId}/parties/${transaction.partyId}/currentDebit`] = newDebit;
+        updates[`/users/${userId}/parties/${transaction.partyId}/currentCredit`] = newCredit;
+      }
+
+      // 2. Reverse Related Party Balance (Direct Trade)
+      if (transaction.isDirectTrade && transaction.relatedPartyId) {
+        const relatedRef = ref(rtdb, `users/${userId}/parties/${transaction.relatedPartyId}`);
+        const relatedSnap = await get(relatedRef);
+        if (relatedSnap.exists()) {
+          const relatedData = relatedSnap.val() as Party;
+          let relDebit = relatedData.currentDebit || 0;
+          let relCredit = relatedData.currentCredit || 0;
+
+          if (transaction.type === 'Material Received') {
+            relDebit = Math.max(0, relDebit - totalValue);
+          } else if (transaction.type === 'Material Sent') {
+            relCredit = Math.max(0, relCredit - totalValue);
+          }
+          updates[`/users/${userId}/parties/${transaction.relatedPartyId}/currentDebit`] = relDebit;
+          updates[`/users/${userId}/parties/${transaction.relatedPartyId}/currentCredit`] = relCredit;
+        }
+      }
+
+      // 3. Delete Linked Stock Entry
+      const stockRef = ref(rtdb, `users/${userId}/stockEntries`);
+      const stockSnap = await get(stockRef);
+      if (stockSnap.exists()) {
+        const stockData = stockSnap.val();
+        const stockId = Object.keys(stockData).find(key => stockData[key].transactionId === transaction.id);
+        if (stockId) {
+          updates[`/users/${userId}/stockEntries/${stockId}`] = null;
+        }
+      }
+
+      // 4. Delete Linked Daily Entry
+      if (transaction.type === 'Money Given' || transaction.type === 'Money Received') {
+        const dailyRef = ref(rtdb, `users/${userId}/dailyEntries`);
+        const dailySnap = await get(dailyRef);
+        if (dailySnap.exists()) {
+          const dailyData = dailySnap.val();
+          const dailyId = Object.keys(dailyData).find(key => {
+            const entry = dailyData[key];
+            const typeMatch = (transaction.type === 'Money Given' && entry.type === 'outgoing') || 
+                             (transaction.type === 'Money Received' && entry.type === 'income');
+            const amountMatch = Math.abs(entry.amount - totalValue) < 0.01;
+            // Date match within 5 minutes (300000 ms) to be safe with server timestamps
+            const dateMatch = Math.abs((entry.date || 0) - (transaction.date || 0)) < 300000;
+            return typeMatch && amountMatch && dateMatch;
+          });
+          if (dailyId) {
+            updates[`/users/${userId}/dailyEntries/${dailyId}`] = null;
+          }
+        }
+      }
+
+      // 5. Delete Transaction itself
+      updates[`/users/${userId}/transactions/${transaction.id}`] = null;
+
+      await update(ref(rtdb), updates);
+      toast.success('Transaction deleted and balances reversed');
+      setDeletingTransId(null);
+    } catch (error) {
+      const message = handleDatabaseError(error, OperationType.DELETE, 'transaction');
+      toast.error(message);
+    }
+  };
+
   const filteredParties = parties
     .filter(p => p.name.toLowerCase().includes(search.toLowerCase()))
     .sort((a, b) => {
@@ -227,7 +316,8 @@ export default function Parties() {
                     <TableHead className="pl-6">Date</TableHead>
                     <TableHead>Type</TableHead>
                     <TableHead>Details</TableHead>
-                    <TableHead className="text-right pr-6">Value</TableHead>
+                    <TableHead className="text-right">Value</TableHead>
+                    <TableHead className="w-10 pr-6"></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -256,11 +346,42 @@ export default function Parties() {
                           {t.taxName && <span className="font-bold text-blue-600 italic">({t.taxName})</span>}
                           {t.paymentDetails && <span className="text-muted-foreground italic block">Note: {t.paymentDetails}</span>}
                         </TableCell>
-                        <TableCell className={`text-right pr-6 font-mono font-bold ${
+                        <TableCell className={`text-right font-mono font-bold ${
                           t.type === 'Material Sent' || t.type === 'Money Given' || t.type === 'Tax' ? 'text-blue-600' : 'text-orange-600'
                         }`}>
                           {t.type === 'Material Sent' || t.type === 'Money Given' || t.type === 'Tax' ? '+' : '-'}
                           {formatCurrency(t.totalValue || t.amount || 0)}
+                        </TableCell>
+                        <TableCell className="pr-6">
+                          {deletingTransId === t.id ? (
+                            <div className="flex items-center gap-1">
+                              <Button 
+                                variant="destructive" 
+                                size="sm" 
+                                className="h-7 px-2 text-[10px]"
+                                onClick={() => handleDeleteTransaction(t)}
+                              >
+                                Confirm
+                              </Button>
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                className="h-7 w-7 p-0"
+                                onClick={() => setDeletingTransId(null)}
+                              >
+                                ✕
+                              </Button>
+                            </div>
+                          ) : (
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                              onClick={() => setDeletingTransId(t.id!)}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))
