@@ -20,9 +20,6 @@ export default function Payments() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(false);
 
-  const amountRef = useRef<HTMLInputElement>(null);
-  const detailsRef = useRef<HTMLInputElement>(null);
-
   const [formData, setFormData] = useState({
     partyId: '',
     type: 'Money Given' as TransactionType,
@@ -134,16 +131,6 @@ export default function Payments() {
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent, nextRef?: React.RefObject<HTMLInputElement>, prevRef?: React.RefObject<HTMLInputElement>) => {
-    if (e.key === 'ArrowDown' && nextRef?.current) {
-      e.preventDefault();
-      nextRef.current.focus();
-    } else if (e.key === 'ArrowUp' && prevRef?.current) {
-      e.preventDefault();
-      prevRef.current.focus();
-    }
-  };
-
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
       <Card className="lg:col-span-1">
@@ -185,11 +172,9 @@ export default function Payments() {
             <div className="space-y-2">
               <Label>Amount (₹)</Label>
               <Input 
-                ref={amountRef}
                 type="number" 
                 value={formData.amount || ''} 
                 onChange={(e) => setFormData({ ...formData, amount: Number(e.target.value) })}
-                onKeyDown={(e) => handleKeyDown(e, detailsRef)}
                 placeholder="0.00"
               />
             </div>
@@ -197,10 +182,8 @@ export default function Payments() {
             <div className="space-y-2">
               <Label>Payment Details</Label>
               <Input 
-                ref={detailsRef}
                 value={formData.paymentDetails} 
                 onChange={(e) => setFormData({ ...formData, paymentDetails: e.target.value })}
-                onKeyDown={(e) => handleKeyDown(e, undefined, amountRef)}
                 placeholder="e.g. Cash, Cheque No, Bank Transfer"
               />
             </div>

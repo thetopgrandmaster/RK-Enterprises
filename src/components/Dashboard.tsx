@@ -30,7 +30,7 @@ export default function Dashboard() {
   const weightRef = useRef<HTMLInputElement>(null);
   const stockWeightRef = useRef<HTMLInputElement>(null);
   const priceRef = useRef<HTMLInputElement>(null);
-  const amountRef = useRef<HTMLInputElement>(null);
+  const materialRef = useRef<HTMLButtonElement>(null);
 
   const [formData, setFormData] = useState({
     partyId: '',
@@ -222,11 +222,11 @@ export default function Dashboard() {
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent, nextRef?: React.RefObject<HTMLInputElement>, prevRef?: React.RefObject<HTMLInputElement>) => {
-    if (e.key === 'ArrowDown' && nextRef?.current) {
+  const handleKeyDown = (e: React.KeyboardEvent, nextRef?: React.RefObject<HTMLElement | null>, prevRef?: React.RefObject<HTMLElement | null>) => {
+    if ((e.key === 'ArrowDown' || e.key === 'ArrowRight') && nextRef?.current) {
       e.preventDefault();
       nextRef.current.focus();
-    } else if (e.key === 'ArrowUp' && prevRef?.current) {
+    } else if ((e.key === 'ArrowUp' || e.key === 'ArrowLeft') && prevRef?.current) {
       e.preventDefault();
       prevRef.current.focus();
     }
@@ -270,7 +270,9 @@ export default function Dashboard() {
                   <div className="space-y-2">
                     <Label>Material</Label>
                     <Select value={formData.material} onValueChange={(val: MaterialType) => setFormData({...formData, material: val})}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectTrigger ref={materialRef} onKeyDown={(e) => handleKeyDown(e, weightRef)}>
+                        <SelectValue />
+                      </SelectTrigger>
                       <SelectContent>
                         {MATERIALS.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
                       </SelectContent>
@@ -284,7 +286,7 @@ export default function Dashboard() {
                       step="0.001" 
                       value={formData.weight || ''} 
                       onChange={e => setFormData({...formData, weight: Number(e.target.value)})} 
-                      onKeyDown={(e) => handleKeyDown(e, stockWeightRef)}
+                      onKeyDown={(e) => handleKeyDown(e, stockWeightRef, materialRef)}
                       required 
                     />
                   </div>
@@ -335,7 +337,11 @@ export default function Dashboard() {
                 
                 <div className="flex flex-col gap-3 pt-2">
                   <div className="flex items-center space-x-2">
-                    <Checkbox id="direct" checked={formData.isDirectTrade} onCheckedChange={(val: boolean) => setFormData({...formData, isDirectTrade: val})} />
+                    <Checkbox 
+                      id="direct" 
+                      checked={formData.isDirectTrade} 
+                      onCheckedChange={(val: boolean) => setFormData({...formData, isDirectTrade: val})} 
+                    />
                     <Label htmlFor="direct" className="text-sm font-medium leading-none">
                       Direct Seller-to-Buyer Trade
                     </Label>
@@ -359,7 +365,6 @@ export default function Dashboard() {
               <div className="space-y-2">
                 <Label>Amount (₹)</Label>
                 <Input 
-                  ref={amountRef}
                   type="number" 
                   value={formData.amount || ''} 
                   onChange={e => setFormData({...formData, amount: Number(e.target.value)})} 

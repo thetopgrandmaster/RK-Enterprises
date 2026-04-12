@@ -27,7 +27,7 @@ interface PartySearchProps {
   showBalance?: boolean
 }
 
-export function PartySearch({
+export const PartySearch = React.forwardRef<HTMLButtonElement, PartySearchProps>(({
   parties,
   value,
   onValueChange,
@@ -35,7 +35,7 @@ export function PartySearch({
   disabled = false,
   className,
   showBalance = true,
-}: PartySearchProps) {
+}, ref) => {
   const [open, setOpen] = React.useState(false)
 
   const getBalance = (party: Party) => {
@@ -49,6 +49,7 @@ export function PartySearch({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
+        ref={ref}
         role="combobox"
         aria-expanded={open}
         disabled={disabled}
@@ -126,4 +127,4 @@ export function PartySearch({
       </PopoverContent>
     </Popover>
   )
-}
+})
