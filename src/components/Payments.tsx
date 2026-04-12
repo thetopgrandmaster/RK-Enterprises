@@ -24,6 +24,7 @@ export default function Payments() {
     partyId: '',
     type: 'Money Given' as TransactionType,
     amount: 0,
+    paymentDetails: '',
   });
 
   useEffect(() => {
@@ -100,6 +101,7 @@ export default function Payments() {
         type: formData.type,
         amount: finalAmount,
         totalValue: finalAmount,
+        paymentDetails: formData.paymentDetails,
         date: serverTimestamp(),
         createdAt: serverTimestamp(),
       };
@@ -120,7 +122,7 @@ export default function Payments() {
       await update(ref(rtdb), updates);
 
       toast.success('Payment recorded successfully');
-      setFormData({ ...formData, amount: 0 });
+      setFormData({ ...formData, amount: 0, paymentDetails: '' });
     } catch (error) {
       const message = handleDatabaseError(error, OperationType.WRITE, 'transactions');
       toast.error(message);
@@ -177,6 +179,15 @@ export default function Payments() {
               />
             </div>
 
+            <div className="space-y-2">
+              <Label>Payment Details</Label>
+              <Input 
+                value={formData.paymentDetails} 
+                onChange={(e) => setFormData({ ...formData, paymentDetails: e.target.value })}
+                placeholder="e.g. Cash, Cheque No, Bank Transfer"
+              />
+            </div>
+
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? 'Processing...' : 'Record Payment'}
             </Button>
@@ -204,6 +215,7 @@ export default function Payments() {
                     </div>
                     <div>
                       <p className="font-medium">{t.partyName}</p>
+                      {t.paymentDetails && <p className="text-[10px] text-muted-foreground italic">{t.paymentDetails}</p>}
                       <p className="text-xs text-muted-foreground">
                         {t.date?.toDate ? format(t.date.toDate(), 'dd/MM/yyyy HH:mm') : (typeof t.date === 'number' ? format(new Date(t.date), 'dd/MM/yyyy HH:mm') : 'Pending...')}
                       </p>

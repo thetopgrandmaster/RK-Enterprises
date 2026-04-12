@@ -253,11 +253,13 @@ export default function Parties() {
                           {t.weight && <span>{t.weight} Kg </span>}
                           {t.price && <span className="text-muted-foreground">@ ₹{t.price}</span>}
                           {t.amount && <span>₹{t.amount}</span>}
+                          {t.taxName && <span className="font-bold text-blue-600 italic">({t.taxName})</span>}
+                          {t.paymentDetails && <span className="text-muted-foreground italic block">Note: {t.paymentDetails}</span>}
                         </TableCell>
                         <TableCell className={`text-right pr-6 font-mono font-bold ${
-                          t.type === 'Material Sent' || t.type === 'Money Given' ? 'text-blue-600' : 'text-orange-600'
+                          t.type === 'Material Sent' || t.type === 'Money Given' || t.type === 'Tax' ? 'text-blue-600' : 'text-orange-600'
                         }`}>
-                          {t.type === 'Material Sent' || t.type === 'Money Given' ? '+' : '-'}
+                          {t.type === 'Material Sent' || t.type === 'Money Given' || t.type === 'Tax' ? '+' : '-'}
                           {formatCurrency(t.totalValue || t.amount || 0)}
                         </TableCell>
                       </TableRow>
