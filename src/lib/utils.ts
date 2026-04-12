@@ -8,7 +8,7 @@ export function cn(...inputs: ClassValue[]) {
 export function formatWeight(kg: number): string {
   const whole = Math.floor(kg);
   const fraction = Math.round((kg - whole) * 1000);
-  return `${whole}x ${fraction.toString().padStart(3, '0')}`;
+  return `${whole} x ${fraction.toString().padStart(3, '0')}`;
 }
 
 export function parseWeight(raw: string): number {

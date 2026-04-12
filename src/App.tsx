@@ -30,7 +30,7 @@ import Payments from './components/Payments';
 import GodownStock from './components/GodownStock';
 import LoadSheet from './components/LoadSheet';
 import DailyTracker from './components/DailyTracker';
-import PurchaseStock from './components/PurchaseStock';
+import SalesStock from './components/SalesStock';
 import Reset from './components/Reset';
 
 export default function App() {
@@ -283,9 +283,9 @@ export default function App() {
                 <FileText className="w-4 h-4" />
                 <span className="hidden sm:inline">Load Sheet</span>
               </TabsTrigger>
-              <TabsTrigger value="purchase-stock" className="flex items-center gap-2 px-4">
+              <TabsTrigger value="sales-stock" className="flex items-center gap-2 px-4">
                 <ShoppingBag className="w-4 h-4" />
-                <span className="hidden sm:inline">Purchase Stock</span>
+                <span className="hidden sm:inline">Sales Stock</span>
               </TabsTrigger>
               <TabsTrigger value="daily" className="flex items-center gap-2 px-4">
                 <Calendar className="w-4 h-4" />
@@ -313,8 +313,8 @@ export default function App() {
           <TabsContent value="load-sheet" className="mt-0">
             <LoadSheet />
           </TabsContent>
-          <TabsContent value="purchase-stock" className="mt-0">
-            <PurchaseStock />
+          <TabsContent value="sales-stock" className="mt-0">
+            <SalesStock />
           </TabsContent>
           <TabsContent value="daily" className="mt-0">
             <DailyTracker />

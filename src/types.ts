@@ -17,7 +17,7 @@ export interface DailyPrice {
   price: number;
 }
 
-export type TransactionType = 'Money Given' | 'Money Received' | 'Material Sent' | 'Material Received';
+export type TransactionType = 'Money Given' | 'Money Received' | 'Material Sent' | 'Material Received' | 'Tax';
 
 export interface Transaction {
   id?: string;
