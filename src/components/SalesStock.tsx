@@ -5,7 +5,7 @@ import { Party, Transaction } from '../types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
-import { Search, ShoppingBag, ArrowLeft, Plus, Percent } from 'lucide-react';
+import { Search, ShoppingBag, ArrowLeft, Plus, Percent, Edit2 } from 'lucide-react';
 import { formatWeight, formatCurrency, customRound, cn } from '../lib/utils';
 import { format } from 'date-fns';
 import { Button } from '@/components/ui/button';
@@ -22,6 +22,10 @@ export default function SalesStock() {
   const [taxAmount, setTaxAmount] = useState<number>(0);
   const [taxName, setTaxName] = useState<string>('');
   const [isTaxDialogOpen, setIsTaxDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
+  const [editWeight, setEditWeight] = useState<number>(0);
+  const [editPrice, setEditPrice] = useState<number>(0);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -110,6 +114,89 @@ export default function SalesStock() {
     }
   };
 
+  const handleEditTransaction = async () => {
+    if (!selectedParty || !editingTransaction) return;
+    setLoading(true);
+
+    try {
+      const userId = auth.currentUser?.uid;
+      if (!userId) throw new Error('User not authenticated');
+
+      const updates: any = {};
+      const newTotalValue = customRound(editWeight * editPrice);
+
+      // Update the specific transaction
+      updates[`/users/${userId}/transactions/${editingTransaction.id}/weight`] = editWeight;
+      updates[`/users/${userId}/transactions/${editingTransaction.id}/price`] = editPrice;
+      updates[`/users/${userId}/transactions/${editingTransaction.id}/totalValue`] = newTotalValue;
+
+      // Bulk update price for all transactions of this party
+      transactions.forEach(t => {
+        if (t.id !== editingTransaction.id && t.type.includes('Material')) {
+          const tWeight = t.weight || 0;
+          const tNewTotal = customRound(tWeight * editPrice);
+          updates[`/users/${userId}/transactions/${t.id}/price`] = editPrice;
+          updates[`/users/${userId}/transactions/${t.id}/totalValue`] = tNewTotal;
+        }
+      });
+
+      // Recalculate party balance
+      const partyRef = ref(rtdb, `users/${userId}/parties/${selectedParty.id}`);
+      const partySnapshot = await get(partyRef);
+      if (partySnapshot.exists()) {
+        const partyData = partySnapshot.val() as Party;
+        
+        // We need to calculate the total debit and credit from scratch to be safe
+        // or just apply the differences. Let's calculate from scratch based on updated transactions.
+        let totalDebit = 0;
+        let totalCredit = 0;
+
+        // Get all transactions for this party after updates
+        const allTransRef = ref(rtdb, `users/${userId}/transactions`);
+        const allTransSnap = await get(allTransRef);
+        const allTrans = allTransSnap.val();
+        
+        if (allTrans) {
+          Object.entries(allTrans).forEach(([id, t]: [string, any]) => {
+            if (t.partyId === selectedParty.id || t.relatedPartyId === selectedParty.id) {
+              let val = t.totalValue || t.amount || 0;
+              // If this is the one we are currently updating in 'updates', use the new value
+              if (updates[`/users/${userId}/transactions/${id}/totalValue`] !== undefined) {
+                val = updates[`/users/${userId}/transactions/${id}/totalValue`];
+              }
+
+              if (t.type === 'Material Sent' || t.type === 'Tax' || t.type === 'Money Given') {
+                totalDebit += val;
+              } else if (t.type === 'Money Received' || t.type === 'Material Received') {
+                totalCredit += val;
+              }
+            }
+          });
+        }
+
+        updates[`/users/${userId}/parties/${selectedParty.id}/currentDebit`] = totalDebit;
+        updates[`/users/${userId}/parties/${selectedParty.id}/currentCredit`] = totalCredit;
+      }
+
+      await update(ref(rtdb), updates);
+      toast.success('Transaction updated and bulk price applied');
+      setIsEditDialogOpen(false);
+      setEditingTransaction(null);
+    } catch (error) {
+      const message = handleDatabaseError(error, OperationType.WRITE, 'transactions');
+      toast.error(message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const openEditDialog = (t: Transaction) => {
+    setEditingTransaction(t);
+    setEditWeight(t.weight || 0);
+    setEditPrice(t.price || 0);
+    setIsEditDialogOpen(true);
+  };
+
   const filteredParties = parties.filter(p => p.name.toLowerCase().includes(search.toLowerCase()));
 
   if (selectedParty) {
@@ -128,44 +215,85 @@ export default function SalesStock() {
             </div>
           </div>
           
-          <Dialog open={isTaxDialogOpen} onOpenChange={setIsTaxDialogOpen}>
-            <DialogTrigger render={<Button className="flex items-center gap-2" />}>
-              <Percent className="w-4 h-4" />
-              Add Tax
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Add Tax for {selectedParty.name}</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4 py-4">
-                <div className="space-y-2">
-                  <Label htmlFor="taxName">Tax Name</Label>
-                  <Input 
-                    id="taxName" 
-                    value={taxName} 
-                    onChange={e => setTaxName(e.target.value)}
-                    placeholder="e.g. GST, Service Tax"
-                  />
+          <div className="flex items-center gap-2">
+            <Dialog open={isTaxDialogOpen} onOpenChange={setIsTaxDialogOpen}>
+              <DialogTrigger render={<Button className="flex items-center gap-2" />}>
+                <Percent className="w-4 h-4" />
+                Add Tax
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Add Tax for {selectedParty.name}</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="taxName">Tax Name</Label>
+                    <Input 
+                      id="taxName" 
+                      value={taxName} 
+                      onChange={e => setTaxName(e.target.value)}
+                      placeholder="e.g. GST, Service Tax"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="tax">Tax Amount (₹)</Label>
+                    <Input 
+                      id="tax" 
+                      type="number" 
+                      value={taxAmount} 
+                      onChange={e => setTaxAmount(Number(e.target.value))}
+                      placeholder="Enter amount"
+                    />
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="tax">Tax Amount (₹)</Label>
-                  <Input 
-                    id="tax" 
-                    type="number" 
-                    value={taxAmount} 
-                    onChange={e => setTaxAmount(Number(e.target.value))}
-                    placeholder="Enter amount"
-                  />
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setIsTaxDialogOpen(false)}>Cancel</Button>
+                  <Button onClick={handleAddTax} disabled={loading || taxAmount <= 0}>
+                    {loading ? 'Adding...' : 'Add Tax'}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+
+            <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Edit Transaction</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="editWeight">Weight (Kg)</Label>
+                    <Input 
+                      id="editWeight" 
+                      type="number" 
+                      step="0.001"
+                      value={editWeight} 
+                      onChange={e => setEditWeight(Number(e.target.value))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="editPrice">Price (₹ per Kg)</Label>
+                    <Input 
+                      id="editPrice" 
+                      type="number" 
+                      step="0.01"
+                      value={editPrice} 
+                      onChange={e => setEditPrice(Number(e.target.value))}
+                    />
+                    <p className="text-[10px] text-muted-foreground italic">
+                      * Changing price will update all material transactions for this party.
+                    </p>
+                  </div>
                 </div>
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setIsTaxDialogOpen(false)}>Cancel</Button>
-                <Button onClick={handleAddTax} disabled={loading || taxAmount <= 0}>
-                  {loading ? 'Adding...' : 'Add Tax'}
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>Cancel</Button>
+                  <Button onClick={handleEditTransaction} disabled={loading}>
+                    {loading ? 'Updating...' : 'Save Changes'}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
         </div>
 
         <Card>
@@ -180,13 +308,14 @@ export default function SalesStock() {
                   <TableHead>Price (per kg)</TableHead>
                   <TableHead>Material</TableHead>
                   <TableHead className="text-right">Total Price</TableHead>
-                  <TableHead className="text-right pr-6">Running Balance</TableHead>
+                  <TableHead className="text-right">Running Balance</TableHead>
+                  <TableHead className="w-10 pr-6"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {transactions.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center py-12 text-muted-foreground">
+                    <TableCell colSpan={6} className="text-center py-12 text-muted-foreground">
                       No transactions found for this party.
                     </TableCell>
                   </TableRow>
@@ -194,6 +323,7 @@ export default function SalesStock() {
                   transactions.map((t) => {
                     const isPayment = t.type === 'Money Received';
                     const isTax = t.type === 'Tax';
+                    const isMaterial = t.type.includes('Material');
                     
                     // Calculate effect on balance
                     // For a buyer:
@@ -238,8 +368,15 @@ export default function SalesStock() {
                         )}>
                           {formatCurrency(t.totalValue || t.amount || 0)}
                         </TableCell>
-                        <TableCell className="text-right pr-6 font-mono font-bold">
+                        <TableCell className="text-right font-mono font-bold">
                           {formatCurrency(runningBalance)}
+                        </TableCell>
+                        <TableCell className="pr-6">
+                          {isMaterial && (
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEditDialog(t)}>
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </Button>
+                          )}
                         </TableCell>
                       </TableRow>
                     );
@@ -249,9 +386,10 @@ export default function SalesStock() {
               <tfoot className="bg-muted/30">
                 <TableRow>
                   <TableCell colSpan={4} className="text-right font-bold pl-6">Current Balance:</TableCell>
-                  <TableCell className="text-right pr-6 font-mono font-bold text-lg">
+                  <TableCell className="text-right font-mono font-bold text-lg">
                     {formatCurrency(runningBalance)}
                   </TableCell>
+                  <TableCell className="pr-6"></TableCell>
                 </TableRow>
               </tfoot>
             </Table>

@@ -18,7 +18,7 @@ import { format } from 'date-fns';
 import { handleDatabaseError, OperationType } from '../lib/database-errors';
 import { PartySearch } from './PartySearch';
 
-const MATERIALS: MaterialType[] = ['AA', 'CK', 'AW', 'AC', 'LS', 'BC', 'AWC'];
+const MATERIALS: MaterialType[] = ['AA', 'CK', 'AW', 'AC', 'LS', 'BC', 'AWC', '3 mm', '4 mm'];
 
 export default function Dashboard() {
   const [parties, setParties] = useState<Party[]>([]);
@@ -26,11 +26,15 @@ export default function Dashboard() {
   const [stockEntries, setStockEntries] = useState<StockEntry[]>([]);
   const [dailyEntries, setDailyEntries] = useState<DailyEntry[]>([]);
   const [loading, setLoading] = useState(false);
+  const [lastSelectedPartyId, setLastSelectedPartyId] = useState('');
 
   const weightRef = useRef<HTMLInputElement>(null);
   const stockWeightRef = useRef<HTMLInputElement>(null);
   const priceRef = useRef<HTMLInputElement>(null);
   const materialRef = useRef<HTMLButtonElement>(null);
+  const packagingRef = useRef<HTMLButtonElement>(null);
+  const directRef = useRef<HTMLButtonElement>(null);
+  const relatedPartyRef = useRef<HTMLButtonElement>(null);
 
   const [formData, setFormData] = useState({
     partyId: '',
@@ -82,6 +86,20 @@ export default function Dashboard() {
       unsubscribeDaily();
     };
   }, []);
+
+  // Auto-set transaction type based on party type
+  useEffect(() => {
+    if (formData.partyId && formData.partyId !== lastSelectedPartyId) {
+      const selectedParty = parties.find(p => p.id === formData.partyId);
+      if (selectedParty) {
+        setFormData(prev => ({
+          ...prev,
+          type: selectedParty.type === 'seller' ? 'Material Received' : 'Material Sent'
+        }));
+        setLastSelectedPartyId(formData.partyId);
+      }
+    }
+  }, [formData.partyId, parties, lastSelectedPartyId]);
 
   const totalGodownWeight = stockEntries.reduce((sum, e) => sum + e.weightKg, 0) - 
     transactions.filter(t => t.type === 'Material Sent' && !t.isDirectTrade).reduce((sum, t) => sum + (t.weight || 0), 0);
@@ -270,40 +288,13 @@ export default function Dashboard() {
                   <div className="space-y-2">
                     <Label>Material</Label>
                     <Select value={formData.material} onValueChange={(val: MaterialType) => setFormData({...formData, material: val})}>
-                      <SelectTrigger ref={materialRef} onKeyDown={(e) => handleKeyDown(e, weightRef)}>
+                      <SelectTrigger ref={materialRef} onKeyDown={(e) => handleKeyDown(e, priceRef)}>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
                         {MATERIALS.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
                       </SelectContent>
                     </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Weight (Kg)</Label>
-                    <Input 
-                      ref={weightRef}
-                      type="number" 
-                      step="0.001" 
-                      value={formData.weight || ''} 
-                      onChange={e => setFormData({...formData, weight: Number(e.target.value)})} 
-                      onKeyDown={(e) => handleKeyDown(e, stockWeightRef, materialRef)}
-                      required 
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Stock Weight</Label>
-                    <Input 
-                      ref={stockWeightRef}
-                      type="number" 
-                      step="0.001" 
-                      value={formData.stockWeight || ''} 
-                      onChange={e => setFormData({...formData, stockWeight: Number(e.target.value)})} 
-                      onKeyDown={(e) => handleKeyDown(e, priceRef, weightRef)}
-                      placeholder="Defaults to Weight" 
-                    />
                   </div>
                   <div className="space-y-2">
                     <Label>Price (₹ per Kg)</Label>
@@ -313,8 +304,35 @@ export default function Dashboard() {
                       step="0.01" 
                       value={formData.price || ''} 
                       onChange={e => setFormData({...formData, price: Number(e.target.value)})} 
-                      onKeyDown={(e) => handleKeyDown(e, undefined, stockWeightRef)}
+                      onKeyDown={(e) => handleKeyDown(e, weightRef, materialRef)}
                       required 
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Weight (Kg)</Label>
+                    <Input 
+                      ref={weightRef}
+                      type="number" 
+                      step="0.001" 
+                      value={formData.weight || ''} 
+                      onChange={e => setFormData({...formData, weight: Number(e.target.value)})} 
+                      onKeyDown={(e) => handleKeyDown(e, stockWeightRef, priceRef)}
+                      required 
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Stock Weight</Label>
+                    <Input 
+                      ref={stockWeightRef}
+                      type="number" 
+                      step="0.001" 
+                      value={formData.stockWeight || ''} 
+                      onChange={e => setFormData({...formData, stockWeight: Number(e.target.value)})} 
+                      onKeyDown={(e) => handleKeyDown(e, packagingRef, weightRef)}
+                      placeholder="Defaults to Weight" 
                     />
                   </div>
                 </div>
@@ -325,7 +343,7 @@ export default function Dashboard() {
                     value={formData.packagingType} 
                     onValueChange={(val: 'Gunny Bags' | 'Loose') => setFormData({...formData, packagingType: val})}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger ref={packagingRef} onKeyDown={(e) => handleKeyDown(e, directRef, stockWeightRef)}>
                       <SelectValue placeholder="Select packaging" />
                     </SelectTrigger>
                     <SelectContent>
@@ -338,9 +356,11 @@ export default function Dashboard() {
                 <div className="flex flex-col gap-3 pt-2">
                   <div className="flex items-center space-x-2">
                     <Checkbox 
+                      ref={directRef}
                       id="direct" 
                       checked={formData.isDirectTrade} 
                       onCheckedChange={(val: boolean) => setFormData({...formData, isDirectTrade: val})} 
+                      onKeyDown={(e) => handleKeyDown(e, formData.isDirectTrade ? relatedPartyRef : undefined, packagingRef)}
                     />
                     <Label htmlFor="direct" className="text-sm font-medium leading-none">
                       Direct Seller-to-Buyer Trade
@@ -352,6 +372,7 @@ export default function Dashboard() {
                   <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
                     <Label>Related Party ({formData.type === 'Material Received' ? 'Buyer' : 'Seller'})</Label>
                     <PartySearch
+                      ref={relatedPartyRef}
                       parties={parties.filter(p => p.id !== formData.partyId && (formData.type === 'Material Received' ? p.type === 'buyer' : p.type === 'seller'))}
                       value={formData.relatedPartyId}
                       onValueChange={val => setFormData({...formData, relatedPartyId: val})}
