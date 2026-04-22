@@ -276,11 +276,9 @@ export default function GodownStock() {
             Clear All
           </Button>
           <Dialog open={isAddingStock} onOpenChange={setIsAddingStock}>
-            <DialogTrigger asChild>
-              <Button size="sm" className="flex items-center gap-2">
-                <Plus className="w-4 h-4" />
-                Add Stock Directly
-              </Button>
+            <DialogTrigger render={<Button size="sm" className="flex items-center gap-2" />}>
+              <Plus className="w-4 h-4" />
+              Add Stock Directly
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
