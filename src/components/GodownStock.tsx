@@ -7,8 +7,11 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { formatWeight } from '../lib/utils';
-import { Warehouse, FileText, CheckSquare, Square, Trash2, ExternalLink, ArrowRight } from 'lucide-react';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Warehouse, FileText, CheckSquare, Square, Trash2, ExternalLink, ArrowRight, Plus } from 'lucide-react';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { handleDatabaseError, OperationType } from '../lib/database-errors';
 
@@ -18,6 +21,12 @@ export default function GodownStock() {
   const [entries, setEntries] = useState<StockEntry[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [selectedEntries, setSelectedEntries] = useState<Record<string, boolean>>({});
+  const [isAddingStock, setIsAddingStock] = useState(false);
+  const [newStock, setNewStock] = useState({
+    material: 'AA' as MaterialType,
+    weight: '',
+    packagingType: 'Gunny Bags' as 'Gunny Bags' | 'Loose'
+  });
   
   // States for confirmation dialogs
   const [unselectConfirm, setUnselectConfirm] = useState<{ id: string, type: 'single' | 'material' | 'all', material?: MaterialType } | null>(null);
@@ -175,6 +184,41 @@ export default function GodownStock() {
     }
   };
 
+  const handleDirectAdd = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const weight = Number(newStock.weight);
+    if (!weight || weight <= 0) {
+      toast.error('Please enter a valid weight');
+      return;
+    }
+
+    try {
+      const userId = auth.currentUser?.uid;
+      if (!userId) return;
+
+      const stockId = push(ref(rtdb, `users/${userId}/stockEntries`)).key;
+      await set(ref(rtdb, `users/${userId}/stockEntries/${stockId}`), {
+        material: newStock.material,
+        weightRaw: weight.toString(),
+        weightKg: weight,
+        packagingType: newStock.packagingType,
+        date: serverTimestamp(),
+        isDirectAdd: true
+      });
+
+      toast.success('Stock added directly to godown');
+      setIsAddingStock(false);
+      setNewStock({
+        material: 'AA',
+        weight: '',
+        packagingType: 'Gunny Bags'
+      });
+    } catch (error) {
+      const message = handleDatabaseError(error, OperationType.WRITE, 'stockEntries');
+      toast.error(message);
+    }
+  };
+
   const getStockForMaterial = (material: MaterialType) => {
     const materialLower = (material || '').toLowerCase().trim();
     
@@ -231,6 +275,68 @@ export default function GodownStock() {
           >
             Clear All
           </Button>
+          <Dialog open={isAddingStock} onOpenChange={setIsAddingStock}>
+            <DialogTrigger asChild>
+              <Button size="sm" className="flex items-center gap-2">
+                <Plus className="w-4 h-4" />
+                Add Stock Directly
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Add Physical Stock Directly</DialogTitle>
+                <DialogDescription>
+                  This adds weight directly to the godown without creating a party transaction.
+                </DialogDescription>
+              </DialogHeader>
+              <form onSubmit={handleDirectAdd} className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label>Material</Label>
+                  <Select 
+                    value={newStock.material} 
+                    onValueChange={(val: MaterialType) => setNewStock({...newStock, material: val})}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {MATERIALS.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Weight (Kg)</Label>
+                  <Input 
+                    type="number" 
+                    step="0.001" 
+                    value={newStock.weight} 
+                    onChange={e => setNewStock({...newStock, weight: e.target.value})} 
+                    placeholder="Enter weight in Kg"
+                    required 
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Packaging Type</Label>
+                  <Select 
+                    value={newStock.packagingType} 
+                    onValueChange={(val: 'Gunny Bags' | 'Loose') => setNewStock({...newStock, packagingType: val})}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Gunny Bags">Gunny Bags</SelectItem>
+                      <SelectItem value="Loose">Loose</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <DialogFooter className="pt-4">
+                  <Button type="button" variant="outline" onClick={() => setIsAddingStock(false)}>Cancel</Button>
+                  <Button type="submit">Add to Godown</Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
           <Button variant="outline" size="sm" className="flex items-center gap-2" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
             <FileText className="w-4 h-4" />
             Load Sheet Ready

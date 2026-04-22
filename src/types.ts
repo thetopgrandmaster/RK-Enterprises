@@ -45,9 +45,10 @@ export interface StockEntry {
   weightRaw: string; // e.g., "35 x 150"
   weightKg: number; // e.g., 35.150
   originalWeight?: number;
-  sourcePartyId: string;
+  sourcePartyId?: string;
   packagingType: 'Gunny Bags' | 'Loose';
   transactionId?: string;
+  isDirectAdd?: boolean;
 }
 
 export interface DailyEntry {
