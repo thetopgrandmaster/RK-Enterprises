@@ -110,8 +110,19 @@ export default function Dashboard() {
     }
   }, [formData.partyId, parties, lastSelectedPartyId]);
 
-  const totalGodownWeight = stockEntries.reduce((sum, e) => sum + (Number(e.weightKg) || 0), 0) - 
-    allTransactions.filter(t => t.type === 'Material Sent' && !t.isDirectTrade).reduce((sum, t) => sum + (Number(t.stockWeight) || Number(t.weight) || 0), 0);
+  const totalGodownWeight = stockEntries.reduce((sum, e) => {
+    const w = Number(e.weightKg);
+    return sum + (isNaN(w) ? 0 : w);
+  }, 0) - allTransactions.filter(t => {
+    const type = (t.type || '').toLowerCase().trim();
+    return type === 'material sent' && !t.isDirectTrade;
+  }).reduce((sum, t) => {
+    // Prioritize stockWeight if it's entered and > 0, otherwise use weight
+    const stockW = Number(t.stockWeight);
+    const weightW = Number(t.weight);
+    const w = (stockW && stockW > 0) ? stockW : (weightW || 0);
+    return sum + (isNaN(w) ? 0 : w);
+  }, 0);
 
   const today = format(new Date(), 'yyyy-MM-dd');
   const isToday = (date: any) => {
@@ -194,7 +205,8 @@ export default function Dashboard() {
 
       if (formData.type === 'Material Received' && !formData.isDirectTrade) {
         const stockId = push(ref(rtdb, `users/${userId}/stockEntries`)).key;
-        const finalStockWeight = formData.stockWeight || formData.weight;
+        // Prioritize stockWeight if it's entered and > 0, otherwise use weight
+        const finalStockWeight = (formData.stockWeight && formData.stockWeight > 0) ? formData.stockWeight : formData.weight;
         updates[`/users/${userId}/stockEntries/${stockId}`] = {
           material: formData.material,
           weightRaw: finalStockWeight.toString(),

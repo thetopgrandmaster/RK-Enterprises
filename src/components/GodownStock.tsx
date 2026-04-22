@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { formatWeight } from '../lib/utils';
 import { Warehouse, FileText, CheckSquare, Square, Trash2, ExternalLink, ArrowRight } from 'lucide-react';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { handleDatabaseError, OperationType } from '../lib/database-errors';
 
@@ -17,6 +18,9 @@ export default function GodownStock() {
   const [entries, setEntries] = useState<StockEntry[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [selectedEntries, setSelectedEntries] = useState<Record<string, boolean>>({});
+  
+  // States for confirmation dialogs
+  const [unselectConfirm, setUnselectConfirm] = useState<{ id: string, type: 'single' | 'material' | 'all', material?: MaterialType } | null>(null);
 
   useEffect(() => {
     const userId = auth.currentUser?.uid;
@@ -61,14 +65,18 @@ export default function GodownStock() {
 
     const targetChecked = checked !== undefined ? checked : !isCurrentlySelected;
     
-    // If we are unselecting, ask for confirmation
+    // If we are unselecting, ask for confirmation via dialog
     if (isCurrentlySelected && !targetChecked) {
-      if (!window.confirm("Are you sure you want to unselect this item from the load sheet?")) {
-        // Reset the selection state in the component to effectively "cancel" the visual change
-        setSelectedEntries(prev => ({ ...prev })); 
-        return;
-      }
+      setUnselectConfirm({ id, type: 'single' });
+      return;
     }
+
+    await performToggle(id, targetChecked);
+  };
+
+  const performToggle = async (id: string, targetChecked: boolean) => {
+    const userId = auth.currentUser?.uid;
+    if (!userId) return;
 
     const newSelected = { ...selectedEntries, [id]: targetChecked };
     setSelectedEntries(newSelected);
@@ -85,7 +93,7 @@ export default function GodownStock() {
     const userId = auth.currentUser?.uid;
     if (!userId) return;
 
-    const materialEntries = entries.filter(e => e.material === material);
+    const materialEntries = entries.filter(e => (e.material || '').toLowerCase().trim() === (material || '').toLowerCase().trim());
     const newSelected = { ...selectedEntries };
     materialEntries.forEach(e => {
       newSelected[e.id!] = true;
@@ -94,21 +102,22 @@ export default function GodownStock() {
     await update(ref(rtdb, `users/${userId}/settings/loadSheet`), { selectedIds: newSelected });
   };
 
-  const deselectAllForMaterial = async (material: MaterialType) => {
+  const deselectAllForMaterial = (material: MaterialType) => {
+    setUnselectConfirm({ id: '', type: 'material', material });
+  };
+
+  const performDeselectAllForMaterial = async (material: MaterialType) => {
     const userId = auth.currentUser?.uid;
     if (!userId) return;
 
-    if (!window.confirm(`Are you sure you want to unselect all ${material} items?`)) {
-      return;
-    }
-
-    const materialEntries = entries.filter(e => e.material === material);
+    const materialEntries = entries.filter(e => (e.material || '').toLowerCase().trim() === (material || '').toLowerCase().trim());
     const newSelected = { ...selectedEntries };
     materialEntries.forEach(e => {
       newSelected[e.id!] = false;
     });
     setSelectedEntries(newSelected);
     await update(ref(rtdb, `users/${userId}/settings/loadSheet`), { selectedIds: newSelected });
+    setUnselectConfirm(null);
   };
 
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -123,6 +132,20 @@ export default function GodownStock() {
       setDeletingId(null);
     } catch (error) {
       const message = handleDatabaseError(error, OperationType.DELETE, `stockEntries/${id}`);
+      toast.error(message);
+    }
+  };
+    
+  const clearAllSelections = async () => {
+    try {
+      const userId = auth.currentUser?.uid;
+      if (!userId) return;
+      setSelectedEntries({});
+      await update(ref(rtdb, `users/${userId}/settings/loadSheet`), { selectedIds: {} });
+      toast.success('All selections cleared');
+      setUnselectConfirm(null);
+    } catch (error) {
+      const message = handleDatabaseError(error, OperationType.UPDATE, 'settings/loadSheet');
       toast.error(message);
     }
   };
@@ -153,21 +176,34 @@ export default function GodownStock() {
   };
 
   const getStockForMaterial = (material: MaterialType) => {
+    const materialLower = (material || '').toLowerCase().trim();
+    
     const additions = entries
-      .filter(e => e.material === material)
+      .filter(e => (e.material || '').toLowerCase().trim() === materialLower)
       .map(e => ({ 
         id: e.id,
-        weightKg: e.weightKg, 
+        weightKg: Number(e.weightKg), 
         raw: e.weightRaw,
         packaging: e.packagingType 
       }));
 
-    const subtractions = transactions
-      .filter(t => t.material === material && t.type === 'Material Sent' && !t.isDirectTrade)
-      .map(t => t.stockWeight || t.weight || 0);
-    
-    const totalAdded = additions.reduce((sum, a) => sum + a.weightKg, 0);
-    const totalSent = subtractions.reduce((sum, s) => sum + s, 0);
+    const matTransactions = transactions.filter(t => !t.isDirectTrade && (t.material || '').toLowerCase().trim() === materialLower);
+
+    const totalAdded = additions.reduce((sum, a) => {
+      const val = a.weightKg;
+      return sum + (isNaN(val) ? 0 : val);
+    }, 0);
+
+    const totalSent = matTransactions
+      .filter(t => (t.type || '').toLowerCase().trim() === 'material sent')
+      .reduce((sum, t) => {
+        // Prioritize stockWeight if it's entered and > 0, otherwise use weight
+        const stockW = Number(t.stockWeight);
+        const weightW = Number(t.weight);
+        const w = (stockW && stockW > 0) ? stockW : (weightW || 0);
+        return sum + (isNaN(w) ? 0 : w);
+      }, 0);
+
     const currentTotal = Math.max(0, totalAdded - totalSent);
 
     return {
@@ -191,21 +227,7 @@ export default function GodownStock() {
             variant="ghost" 
             size="sm" 
             className="text-muted-foreground hover:text-destructive"
-            onClick={async () => {
-              if (!window.confirm("Are you sure you want to clear ALL selections from the load sheet?")) {
-                return;
-              }
-              try {
-                const userId = auth.currentUser?.uid;
-                if (!userId) return;
-                setSelectedEntries({});
-                await update(ref(rtdb, `users/${userId}/settings/loadSheet`), { selectedIds: {} });
-                toast.success('All selections cleared');
-              } catch (error) {
-                const message = handleDatabaseError(error, OperationType.UPDATE, 'settings/loadSheet');
-                toast.error(message);
-              }
-            }}
+            onClick={() => setUnselectConfirm({ id: '', type: 'all' })}
           >
             Clear All
           </Button>
@@ -340,13 +362,40 @@ export default function GodownStock() {
         })}
       </div>
 
-      {MATERIALS.every(m => getStockForMaterial(m).entries.length === 0) && (
+      {MATERIALS.every(m => getStockForMaterial(m).entries.length === 0 && getStockForMaterial(m).total === 0) && (
         <Card>
           <CardContent className="py-12 text-center text-muted-foreground">
-            Godown is currently empty. Add stock via the Stock Entry page.
+            Godown is currently empty. Add stock via the Dashboard.
           </CardContent>
         </Card>
       )}
+
+      {/* Confirmation Dialog for Unselecting */}
+      <Dialog open={unselectConfirm !== null} onOpenChange={(open) => !open && setUnselectConfirm(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm Unselect</DialogTitle>
+            <DialogDescription>
+              {unselectConfirm?.type === 'single' && "Are you sure you want to unselect this item from the load sheet?"}
+              {unselectConfirm?.type === 'material' && `Are you sure you want to unselect all ${unselectConfirm.material} items?`}
+              {unselectConfirm?.type === 'all' && "Are you sure you want to clear ALL selections from the load sheet?"}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setUnselectConfirm(null)}>Cancel</Button>
+            <Button 
+              variant="destructive" 
+              onClick={() => {
+                if (unselectConfirm?.type === 'single') performToggle(unselectConfirm.id, false).then(() => setUnselectConfirm(null));
+                else if (unselectConfirm?.type === 'material') performDeselectAllForMaterial(unselectConfirm.material!);
+                else if (unselectConfirm?.type === 'all') clearAllSelections();
+              }}
+            >
+              Unselect
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

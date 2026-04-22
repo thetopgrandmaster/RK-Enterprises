@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Printer } from 'lucide-react';
 import { formatWeight } from '../lib/utils';
 
-const MATERIALS: MaterialType[] = ['AA', 'CK', 'AW', 'AC', 'LS', 'BC', 'AWC'];
+const MATERIALS: MaterialType[] = ['AA', 'CK', 'AW', 'AC', 'LS', 'BC', 'AWC', '3 mm', '4 mm'];
 
 export default function LoadSheet() {
   const [entries, setEntries] = useState<StockEntry[]>([]);
@@ -54,12 +54,12 @@ export default function LoadSheet() {
 
   // Group selected entries by material
   const groupedEntries: Record<MaterialType, StockEntry[]> = MATERIALS.reduce((acc, m) => {
-    acc[m] = selectedEntries.filter(e => e.material === m);
+    acc[m] = selectedEntries.filter(e => (e.material || '').toLowerCase().trim() === m.toLowerCase().trim());
     return acc;
   }, {} as Record<MaterialType, StockEntry[]>);
 
   // Only show materials that have entries
-  const activeMaterials = MATERIALS.filter(m => groupedEntries[m].length > 0);
+  const activeMaterials = MATERIALS.filter(m => (groupedEntries[m]?.length || 0) > 0);
 
   // Find the maximum number of entries for any material to determine row count, but at least 25 as requested
   const maxRows = Math.max(25, ...activeMaterials.map(m => groupedEntries[m].length));
@@ -106,7 +106,10 @@ export default function LoadSheet() {
               ))}
               <TableRow className="bg-muted/30 font-black h-12 print:bg-transparent">
                 {activeMaterials.map(m => {
-                  const total = groupedEntries[m].reduce((sum, e) => sum + e.weightKg, 0);
+                  const total = (groupedEntries[m] || []).reduce((sum, e) => {
+                    const w = Number(e.weightKg);
+                    return sum + (isNaN(w) ? 0 : w);
+                  }, 0);
                   return (
                     <TableCell key={m} className="border-0 text-center text-black text-xs font-black">
                       {total > 0 ? `${total.toFixed(3)} Kg` : ''}
