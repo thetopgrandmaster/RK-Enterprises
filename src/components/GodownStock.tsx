@@ -11,7 +11,7 @@ import { Warehouse, FileText, CheckSquare, Square, Trash2, ExternalLink, ArrowRi
 import { toast } from 'sonner';
 import { handleDatabaseError, OperationType } from '../lib/database-errors';
 
-const MATERIALS: MaterialType[] = ['AA', 'CK', 'AW', 'AC', 'LS', 'BC', 'AWC'];
+const MATERIALS: MaterialType[] = ['AA', 'CK', 'AW', 'AC', 'LS', 'BC', 'AWC', '3 mm', '4 mm'];
 
 export default function GodownStock() {
   const [entries, setEntries] = useState<StockEntry[]>([]);
@@ -51,12 +51,28 @@ export default function GodownStock() {
     };
   }, []);
 
-  const toggleEntry = async (id: string) => {
+  const toggleEntry = async (id: string, checked?: boolean) => {
     const userId = auth.currentUser?.uid;
-    if (!userId) return;
+    if (!userId || !id) return;
 
-    const newSelected = { ...selectedEntries, [id]: !selectedEntries[id] };
+    const isCurrentlySelected = !!selectedEntries[id];
+    // If incoming checked state is same as current, do nothing
+    if (checked !== undefined && checked === isCurrentlySelected) return;
+
+    const targetChecked = checked !== undefined ? checked : !isCurrentlySelected;
+    
+    // If we are unselecting, ask for confirmation
+    if (isCurrentlySelected && !targetChecked) {
+      if (!window.confirm("Are you sure you want to unselect this item from the load sheet?")) {
+        // Reset the selection state in the component to effectively "cancel" the visual change
+        setSelectedEntries(prev => ({ ...prev })); 
+        return;
+      }
+    }
+
+    const newSelected = { ...selectedEntries, [id]: targetChecked };
     setSelectedEntries(newSelected);
+    
     try {
       await update(ref(rtdb, `users/${userId}/settings/loadSheet`), { selectedIds: newSelected });
     } catch (error) {
@@ -81,6 +97,10 @@ export default function GodownStock() {
   const deselectAllForMaterial = async (material: MaterialType) => {
     const userId = auth.currentUser?.uid;
     if (!userId) return;
+
+    if (!window.confirm(`Are you sure you want to unselect all ${material} items?`)) {
+      return;
+    }
 
     const materialEntries = entries.filter(e => e.material === material);
     const newSelected = { ...selectedEntries };
@@ -172,6 +192,9 @@ export default function GodownStock() {
             size="sm" 
             className="text-muted-foreground hover:text-destructive"
             onClick={async () => {
+              if (!window.confirm("Are you sure you want to clear ALL selections from the load sheet?")) {
+                return;
+              }
               try {
                 const userId = auth.currentUser?.uid;
                 if (!userId) return;
@@ -264,7 +287,7 @@ export default function GodownStock() {
                           <Checkbox 
                             id={`entry-${entry.id}`} 
                             checked={!!selectedEntries[entry.id!]}
-                            onCheckedChange={() => toggleEntry(entry.id!)}
+                            onCheckedChange={(checked) => toggleEntry(entry.id!, checked === true)}
                           />
                           <label 
                             htmlFor={`entry-${entry.id}`}

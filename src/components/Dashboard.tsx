@@ -23,6 +23,7 @@ const MATERIALS: MaterialType[] = ['AA', 'CK', 'AW', 'AC', 'LS', 'BC', 'AWC', '3
 export default function Dashboard() {
   const [parties, setParties] = useState<Party[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [allTransactions, setAllTransactions] = useState<Transaction[]>([]);
   const [stockEntries, setStockEntries] = useState<StockEntry[]>([]);
   const [dailyEntries, setDailyEntries] = useState<DailyEntry[]>([]);
   const [loading, setLoading] = useState(false);
@@ -43,6 +44,7 @@ export default function Dashboard() {
     weight: 0,
     stockWeight: 0,
     price: 0,
+    buyerPrice: 0,
     amount: 0,
     isDirectTrade: false,
     relatedPartyId: '',
@@ -67,6 +69,12 @@ export default function Dashboard() {
       setTransactions(list.sort((a, b) => (b.date || 0) - (a.date || 0)));
     });
 
+    const unsubscribeAllTrans = onValue(transRef, (snapshot) => {
+      const data = snapshot.val();
+      const list = data ? Object.entries(data).map(([id, val]: [string, any]) => ({ id, ...val })) : [];
+      setAllTransactions(list);
+    });
+
     const stockRef = ref(rtdb, `users/${userId}/stockEntries`);
     const unsubscribeStock = onValue(stockRef, (snapshot) => {
       const data = snapshot.val();
@@ -82,6 +90,7 @@ export default function Dashboard() {
     return () => {
       unsubscribeParties();
       unsubscribeTrans();
+      unsubscribeAllTrans();
       unsubscribeStock();
       unsubscribeDaily();
     };
@@ -101,11 +110,22 @@ export default function Dashboard() {
     }
   }, [formData.partyId, parties, lastSelectedPartyId]);
 
-  const totalGodownWeight = stockEntries.reduce((sum, e) => sum + e.weightKg, 0) - 
-    transactions.filter(t => t.type === 'Material Sent' && !t.isDirectTrade).reduce((sum, t) => sum + (t.weight || 0), 0);
+  const totalGodownWeight = stockEntries.reduce((sum, e) => sum + (Number(e.weightKg) || 0), 0) - 
+    allTransactions.filter(t => t.type === 'Material Sent' && !t.isDirectTrade).reduce((sum, t) => sum + (Number(t.stockWeight) || Number(t.weight) || 0), 0);
 
-  const totalDailyIncome = dailyEntries.filter(e => e.type === 'income').reduce((sum, e) => sum + e.amount, 0);
-  const totalDailyOutgoing = dailyEntries.filter(e => e.type === 'outgoing').reduce((sum, e) => sum + e.amount, 0);
+  const today = format(new Date(), 'yyyy-MM-dd');
+  const isToday = (date: any) => {
+    if (!date) return false;
+    const d = typeof date === 'number' ? new Date(date) : (date.toDate ? date.toDate() : new Date(date));
+    return format(d, 'yyyy-MM-dd') === today;
+  };
+
+  const totalDailyIncome = dailyEntries
+    .filter(e => e.type === 'income' && isToday(e.date))
+    .reduce((sum, e) => sum + e.amount, 0);
+  const totalDailyOutgoing = dailyEntries
+    .filter(e => e.type === 'outgoing' && isToday(e.date))
+    .reduce((sum, e) => sum + e.amount, 0);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -209,14 +229,34 @@ export default function Dashboard() {
           let relDebit = relatedData.currentDebit || 0;
           let relCredit = relatedData.currentCredit || 0;
 
+          // For direct trade, we use buyerPrice for the buyer transaction
+          const sellingPrice = formData.buyerPrice || formData.price;
+          const sellingTotalValue = customRound(formData.weight * sellingPrice);
+
           if (formData.type === 'Material Received') {
-            relDebit += totalValue;
+            relDebit += sellingTotalValue;
           } else if (formData.type === 'Material Sent') {
-            relCredit += totalValue;
+            relCredit += sellingTotalValue;
           }
 
           updates[`/users/${userId}/parties/${formData.relatedPartyId}/currentDebit`] = relDebit;
           updates[`/users/${userId}/parties/${formData.relatedPartyId}/currentCredit`] = relCredit;
+          
+          // Also record a separate transaction for the related party to reflect their price
+          const relTransId = push(ref(rtdb, `users/${userId}/transactions`)).key;
+          updates[`/users/${userId}/transactions/${relTransId}`] = {
+            partyId: formData.relatedPartyId,
+            type: formData.type === 'Material Received' ? 'Material Sent' : 'Material Received',
+            material: formData.material,
+            weight: formData.weight,
+            stockWeight: formData.stockWeight || formData.weight,
+            price: sellingPrice,
+            totalValue: sellingTotalValue,
+            isDirectTrade: true,
+            relatedPartyId: formData.partyId,
+            packagingType: formData.packagingType,
+            date: serverTimestamp(),
+          };
         }
       }
 
@@ -228,6 +268,7 @@ export default function Dashboard() {
         weight: 0,
         stockWeight: 0,
         price: 0,
+        buyerPrice: 0,
         amount: 0,
         isDirectTrade: false,
         relatedPartyId: '',
@@ -369,16 +410,30 @@ export default function Dashboard() {
                 </div>
 
                 {formData.isDirectTrade && (
-                  <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
-                    <Label>Related Party ({formData.type === 'Material Received' ? 'Buyer' : 'Seller'})</Label>
-                    <PartySearch
-                      ref={relatedPartyRef}
-                      parties={parties.filter(p => p.id !== formData.partyId && (formData.type === 'Material Received' ? p.type === 'buyer' : p.type === 'seller'))}
-                      value={formData.relatedPartyId}
-                      onValueChange={val => setFormData({...formData, relatedPartyId: val})}
-                      placeholder="Select related party"
-                      showBalance={false}
-                    />
+                  <div className="space-y-4 animate-in fade-in slide-in-from-top-2">
+                    <div className="space-y-2">
+                      <Label>Related Party ({formData.type === 'Material Received' ? 'Buyer' : 'Seller'})</Label>
+                      <PartySearch
+                        ref={relatedPartyRef}
+                        parties={parties.filter(p => p.id !== formData.partyId && (formData.type === 'Material Received' ? p.type === 'buyer' : p.type === 'seller'))}
+                        value={formData.relatedPartyId}
+                        onValueChange={val => setFormData({...formData, relatedPartyId: val})}
+                        placeholder="Select related party"
+                        showBalance={false}
+                      />
+                    </div>
+                    {formData.type === 'Material Received' && (
+                      <div className="space-y-2">
+                        <Label>Buyer Price (₹ per Kg)</Label>
+                        <Input 
+                          type="number" 
+                          step="0.01" 
+                          value={formData.buyerPrice || ''} 
+                          onChange={e => setFormData({...formData, buyerPrice: Number(e.target.value)})} 
+                          placeholder="Selling price to buyer"
+                        />
+                      </div>
+                    )}
                   </div>
                 )}
               </>
