@@ -237,26 +237,8 @@ export default function GodownStock() {
 
     const matTransactions = transactions.filter(t => !t.isDirectTrade && (t.material || '').toLowerCase().trim() === materialLower);
 
-    const totalAdded = additions.reduce((sum, a) => {
-      const val = a.weightKg;
-      return sum + (isNaN(val) ? 0 : val);
-    }, 0);
-
-    const totalSent = matTransactions
-      .filter(t => (t.type || '').toLowerCase().trim() === 'material sent')
-      .reduce((sum, t) => {
-        // Prioritize stockWeight if it's entered and > 0, otherwise use weight
-        const stockW = Number(t.stockWeight);
-        const weightW = Number(t.weight);
-        const w = (stockW && stockW > 0) ? stockW : (weightW || 0);
-        return sum + (isNaN(w) ? 0 : w);
-      }, 0);
-
-    const currentTotal = Math.max(0, totalAdded - totalSent);
-
     return {
-      entries: additions,
-      total: currentTotal
+      entries: additions
     };
   };
 
@@ -363,8 +345,8 @@ export default function GodownStock() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {MATERIALS.map(material => {
-          const { entries: materialEntries, total } = getStockForMaterial(material);
-          if (materialEntries.length === 0 && total === 0) return null;
+          const { entries: materialEntries } = getStockForMaterial(material);
+          if (materialEntries.length === 0) return null;
 
           const allSelected = materialEntries.length > 0 && materialEntries.every(e => selectedEntries[e.id!]);
 
@@ -416,9 +398,6 @@ export default function GodownStock() {
                         )}
                       </div>
                   </div>
-                  <Badge variant="outline" className="font-mono bg-white">
-                    {total.toFixed(3)} Kg
-                  </Badge>
                 </div>
               </CardHeader>
               <CardContent className="pt-4 space-y-2">

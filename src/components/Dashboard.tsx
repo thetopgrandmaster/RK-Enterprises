@@ -112,20 +112,7 @@ export default function Dashboard() {
     }
   }, [formData.partyId, parties, lastSelectedPartyId]);
 
-  const totalGodownWeight = stockEntries.reduce((sum, e) => {
-    const w = Number(e.weightKg);
-    return sum + (isNaN(w) ? 0 : w);
-  }, 0) - allTransactions.filter(t => {
-    const type = (t.type || '').toLowerCase().trim();
-    return type === 'material sent' && !t.isDirectTrade;
-  }).reduce((sum, t) => {
-    // Prioritize stockWeight if it's entered and > 0, otherwise use weight
-    const stockW = Number(t.stockWeight);
-    const weightW = Number(t.weight);
-    const w = (stockW && stockW > 0) ? stockW : (weightW || 0);
-    return sum + (isNaN(w) ? 0 : w);
-  }, 0);
-
+  // Auto-set transaction type based on party type
   const today = format(new Date(), 'yyyy-MM-dd');
   const isToday = (date: any) => {
     if (!date) return false;
@@ -492,22 +479,6 @@ export default function Dashboard() {
       </Card>
 
       <div className="lg:col-span-2 space-y-6">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Card className="bg-orange-50 border-orange-100">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-xs font-medium text-orange-600 flex items-center gap-2">
-                <GodownIcon className="w-4 h-4" />
-                Godown Weight
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-xl font-bold">
-                {formatWeight(Math.max(0, totalGodownWeight))}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Card className="bg-indigo-50 border-indigo-100">
             <CardHeader className="pb-2">
