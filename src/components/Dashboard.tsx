@@ -18,7 +18,7 @@ import { format } from 'date-fns';
 import { handleDatabaseError, OperationType } from '../lib/database-errors';
 import { PartySearch } from './PartySearch';
 
-const MATERIALS: MaterialType[] = ['AA', 'CK', 'AW', 'AC', 'LS', 'BC', 'AWC', '3 mm', '4 mm'];
+const MATERIALS: MaterialType[] = ['AA', 'CK', 'AW', 'AC', 'LS', 'BC', 'AWC', '3 mm', '4 mm', 'CT Plate'];
 
 export default function Dashboard() {
   const [parties, setParties] = useState<Party[]>([]);

@@ -15,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from 'sonner';
 import { handleDatabaseError, OperationType } from '../lib/database-errors';
 
-const MATERIALS: MaterialType[] = ['AA', 'CK', 'AW', 'AC', 'LS', 'BC', 'AWC', '3 mm', '4 mm'];
+const MATERIALS: MaterialType[] = ['AA', 'CK', 'AW', 'AC', 'LS', 'BC', 'AWC', '3 mm', '4 mm', 'CT Plate'];
 
 export default function GodownStock() {
   const [entries, setEntries] = useState<StockEntry[]>([]);
@@ -466,7 +466,7 @@ export default function GodownStock() {
         })}
       </div>
 
-      {MATERIALS.every(m => getStockForMaterial(m).entries.length === 0 && getStockForMaterial(m).total === 0) && (
+      {MATERIALS.every(m => getStockForMaterial(m).entries.length === 0) && (
         <Card>
           <CardContent className="py-12 text-center text-muted-foreground">
             Godown is currently empty. Add stock via the Dashboard.

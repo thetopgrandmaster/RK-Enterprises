@@ -1,4 +1,4 @@
-export type MaterialType = 'AA' | 'CK' | 'AW' | 'AC' | 'LS' | 'BC' | 'AWC' | '3 mm' | '4 mm';
+export type MaterialType = 'AA' | 'CK' | 'AW' | 'AC' | 'LS' | 'BC' | 'AWC' | '3 mm' | '4 mm' | 'CT Plate';
 
 export interface Party {
   id?: string;
