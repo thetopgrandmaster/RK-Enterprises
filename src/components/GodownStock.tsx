@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { rtdb, auth } from '../firebase';
-import { ref, onValue, set, update, remove } from 'firebase/database';
+import { ref, onValue, set, update, remove, push, serverTimestamp } from 'firebase/database';
 import { StockEntry, MaterialType, Transaction } from '../types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
