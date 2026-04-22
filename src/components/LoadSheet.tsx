@@ -98,7 +98,13 @@ export default function LoadSheet() {
                     const entry = groupedEntries[m][rowIndex];
                     return (
                       <TableCell key={m} className="border-0 text-center font-mono font-bold text-base py-1 px-2">
-                        {entry ? `${formatWeight(entry.weightKg)}${entry.packagingType === 'Loose' ? ' L' : ''}` : ''}
+                        {entry ? (
+                          <>
+                            {formatWeight(entry.weightKg)}
+                            {entry.packagingType === 'Loose' ? ' L' : ''}
+                            {entry.packagingType === 'Gunny Bags' && entry.bagCount && entry.bagCount > 1 ? ` (${entry.bagCount} bgs)` : ''}
+                          </>
+                        ) : ''}
                       </TableCell>
                     );
                   })}

@@ -34,6 +34,7 @@ export interface Transaction {
   isDirectTrade?: boolean;
   relatedPartyId?: string;
   packagingType?: 'Gunny Bags' | 'Loose';
+  bagCount?: number;
   taxName?: string;
   paymentDetails?: string;
 }
@@ -47,6 +48,7 @@ export interface StockEntry {
   originalWeight?: number;
   sourcePartyId?: string;
   packagingType: 'Gunny Bags' | 'Loose';
+  bagCount?: number;
   transactionId?: string;
   isDirectAdd?: boolean;
 }

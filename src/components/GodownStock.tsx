@@ -25,7 +25,8 @@ export default function GodownStock() {
   const [newStock, setNewStock] = useState({
     material: 'AA' as MaterialType,
     weight: '',
-    packagingType: 'Gunny Bags' as 'Gunny Bags' | 'Loose'
+    packagingType: 'Gunny Bags' as 'Gunny Bags' | 'Loose',
+    bagCount: 1
   });
   
   // States for confirmation dialogs
@@ -202,6 +203,7 @@ export default function GodownStock() {
         weightRaw: weight.toString(),
         weightKg: weight,
         packagingType: newStock.packagingType,
+        bagCount: newStock.packagingType === 'Gunny Bags' ? (newStock.bagCount || 1) : null,
         date: serverTimestamp(),
         isDirectAdd: true
       });
@@ -211,7 +213,8 @@ export default function GodownStock() {
       setNewStock({
         material: 'AA',
         weight: '',
-        packagingType: 'Gunny Bags'
+        packagingType: 'Gunny Bags',
+        bagCount: 1
       });
     } catch (error) {
       const message = handleDatabaseError(error, OperationType.WRITE, 'stockEntries');
@@ -228,7 +231,8 @@ export default function GodownStock() {
         id: e.id,
         weightKg: Number(e.weightKg), 
         raw: e.weightRaw,
-        packaging: e.packagingType 
+        packaging: e.packagingType,
+        bagCount: e.bagCount
       }));
 
     const matTransactions = transactions.filter(t => !t.isDirectTrade && (t.material || '').toLowerCase().trim() === materialLower);
@@ -313,20 +317,35 @@ export default function GodownStock() {
                     required 
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label>Packaging Type</Label>
-                  <Select 
-                    value={newStock.packagingType} 
-                    onValueChange={(val: 'Gunny Bags' | 'Loose') => setNewStock({...newStock, packagingType: val})}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Gunny Bags">Gunny Bags</SelectItem>
-                      <SelectItem value="Loose">Loose</SelectItem>
-                    </SelectContent>
-                  </Select>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Packaging Type</Label>
+                    <Select 
+                      value={newStock.packagingType} 
+                      onValueChange={(val: 'Gunny Bags' | 'Loose') => setNewStock({...newStock, packagingType: val})}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Gunny Bags">Gunny Bags</SelectItem>
+                        <SelectItem value="Loose">Loose</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {newStock.packagingType === 'Gunny Bags' && (
+                    <div className="space-y-2 animate-in fade-in slide-in-from-top-1">
+                      <Label>No. of Bags</Label>
+                      <Input 
+                        type="number" 
+                        min="1"
+                        value={newStock.bagCount || ''} 
+                        onChange={e => setNewStock({...newStock, bagCount: Number(e.target.value)})} 
+                        placeholder="1"
+                      />
+                    </div>
+                  )}
                 </div>
                 <DialogFooter className="pt-4">
                   <Button type="button" variant="outline" onClick={() => setIsAddingStock(false)}>Cancel</Button>
@@ -419,7 +438,9 @@ export default function GodownStock() {
                             htmlFor={`entry-${entry.id}`}
                             className="font-mono text-lg cursor-pointer flex items-center gap-1"
                           >
-                            {formatWeight(entry.weightKg)}{entry.packaging === 'Loose' ? ' L' : ''}
+                            {formatWeight(entry.weightKg)}
+                            {entry.packaging === 'Loose' ? ' L' : ''}
+                            {entry.packaging === 'Gunny Bags' && entry.bagCount && entry.bagCount > 1 ? ` (${entry.bagCount} bgs)` : ''}
                           </label>
                         </div>
                         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">

@@ -34,6 +34,7 @@ export default function Dashboard() {
   const priceRef = useRef<HTMLInputElement>(null);
   const materialRef = useRef<HTMLButtonElement>(null);
   const packagingRef = useRef<HTMLButtonElement>(null);
+  const bagCountRef = useRef<HTMLInputElement>(null);
   const directRef = useRef<HTMLButtonElement>(null);
   const relatedPartyRef = useRef<HTMLButtonElement>(null);
 
@@ -49,6 +50,7 @@ export default function Dashboard() {
     isDirectTrade: false,
     relatedPartyId: '',
     packagingType: 'Gunny Bags' as 'Gunny Bags' | 'Loose',
+    bagCount: 1,
   });
 
   useEffect(() => {
@@ -200,6 +202,7 @@ export default function Dashboard() {
         isDirectTrade: formData.isDirectTrade,
         relatedPartyId: formData.relatedPartyId,
         packagingType: (formData.type === 'Material Received' || formData.type === 'Material Sent') ? formData.packagingType : null,
+        bagCount: (formData.type === 'Material Received' || formData.type === 'Material Sent') && formData.packagingType === 'Gunny Bags' ? (formData.bagCount || 1) : null,
         date: serverTimestamp(),
       };
 
@@ -214,6 +217,7 @@ export default function Dashboard() {
           originalWeight: formData.weight,
           sourcePartyId: formData.partyId,
           packagingType: formData.packagingType,
+          bagCount: formData.packagingType === 'Gunny Bags' ? (formData.bagCount || 1) : null,
           transactionId: transId,
           date: serverTimestamp(),
         };
@@ -267,6 +271,7 @@ export default function Dashboard() {
             isDirectTrade: true,
             relatedPartyId: formData.partyId,
             packagingType: formData.packagingType,
+            bagCount: formData.packagingType === 'Gunny Bags' ? (formData.bagCount || 1) : null,
             date: serverTimestamp(),
           };
         }
@@ -284,6 +289,7 @@ export default function Dashboard() {
         amount: 0,
         isDirectTrade: false,
         relatedPartyId: '',
+        bagCount: 1,
       });
     } catch (error) {
       const message = handleDatabaseError(error, OperationType.WRITE, 'transactions');
@@ -390,20 +396,37 @@ export default function Dashboard() {
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label>Packaging Type</Label>
-                  <Select 
-                    value={formData.packagingType} 
-                    onValueChange={(val: 'Gunny Bags' | 'Loose') => setFormData({...formData, packagingType: val})}
-                  >
-                    <SelectTrigger ref={packagingRef} onKeyDown={(e) => handleKeyDown(e, directRef, stockWeightRef)}>
-                      <SelectValue placeholder="Select packaging" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Gunny Bags">Gunny Bags</SelectItem>
-                      <SelectItem value="Loose">Loose</SelectItem>
-                    </SelectContent>
-                  </Select>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Packaging Type</Label>
+                    <Select 
+                      value={formData.packagingType} 
+                      onValueChange={(val: 'Gunny Bags' | 'Loose') => setFormData({...formData, packagingType: val})}
+                    >
+                      <SelectTrigger ref={packagingRef} onKeyDown={(e) => handleKeyDown(e, formData.packagingType === 'Gunny Bags' ? bagCountRef : directRef, stockWeightRef)}>
+                        <SelectValue placeholder="Select packaging" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Gunny Bags">Gunny Bags</SelectItem>
+                        <SelectItem value="Loose">Loose</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {formData.packagingType === 'Gunny Bags' && (
+                    <div className="space-y-2 animate-in fade-in slide-in-from-top-1">
+                      <Label>No. of Bags</Label>
+                      <Input 
+                        ref={bagCountRef}
+                        type="number" 
+                        min="1"
+                        value={formData.bagCount || ''} 
+                        onChange={e => setFormData({...formData, bagCount: Number(e.target.value)})} 
+                        onKeyDown={(e) => handleKeyDown(e, directRef, packagingRef)}
+                        placeholder="1"
+                      />
+                    </div>
+                  )}
                 </div>
                 
                 <div className="flex flex-col gap-3 pt-2">
