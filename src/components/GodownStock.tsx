@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import { formatWeight } from '../lib/utils';
+import { formatWeight, parseWeight } from '../lib/utils';
 import { Warehouse, FileText, CheckSquare, Square, Trash2, ExternalLink, ArrowRight, Plus } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
@@ -15,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from 'sonner';
 import { handleDatabaseError, OperationType } from '../lib/database-errors';
 
-const MATERIALS: MaterialType[] = ['AA', 'CK', 'AW', 'AC', 'LS', 'BC', 'AWC', '3 mm', '4 mm', 'CT Plate'];
+const MATERIALS: MaterialType[] = ['AA', 'CK', 'AW', 'AC', 'LS', 'BC', 'AWC', '3 mm', '4 mm', 'CT Plate', 'Hard wire', 'Roofing sheet'];
 
 export default function GodownStock() {
   const [entries, setEntries] = useState<StockEntry[]>([]);
@@ -187,8 +187,8 @@ export default function GodownStock() {
 
   const handleDirectAdd = async (e: React.FormEvent) => {
     e.preventDefault();
-    const weight = Number(newStock.weight);
-    if (!weight || weight <= 0) {
+    const weightKg = parseWeight(newStock.weight);
+    if (!weightKg || weightKg <= 0) {
       toast.error('Please enter a valid weight');
       return;
     }
@@ -200,8 +200,8 @@ export default function GodownStock() {
       const stockId = push(ref(rtdb, `users/${userId}/stockEntries`)).key;
       await set(ref(rtdb, `users/${userId}/stockEntries/${stockId}`), {
         material: newStock.material,
-        weightRaw: weight.toString(),
-        weightKg: weight,
+        weightRaw: newStock.weight || weightKg.toString(),
+        weightKg: weightKg,
         packagingType: newStock.packagingType,
         bagCount: newStock.packagingType === 'Gunny Bags' ? (newStock.bagCount || 1) : null,
         date: serverTimestamp(),
@@ -234,8 +234,6 @@ export default function GodownStock() {
         packaging: e.packagingType,
         bagCount: e.bagCount
       }));
-
-    const matTransactions = transactions.filter(t => !t.isDirectTrade && (t.material || '').toLowerCase().trim() === materialLower);
 
     return {
       entries: additions
@@ -289,13 +287,12 @@ export default function GodownStock() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Weight (Kg)</Label>
+                  <Label>Weight (e.g. 64 x 950)</Label>
                   <Input 
-                    type="number" 
-                    step="0.001" 
+                    type="text" 
                     value={newStock.weight} 
                     onChange={e => setNewStock({...newStock, weight: e.target.value})} 
-                    placeholder="Enter weight in Kg"
+                    placeholder="64 x 950"
                     required 
                   />
                 </div>

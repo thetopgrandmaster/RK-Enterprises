@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Printer } from 'lucide-react';
 import { formatWeight } from '../lib/utils';
 
-const MATERIALS: MaterialType[] = ['AA', 'CK', 'AW', 'AC', 'LS', 'BC', 'AWC', '3 mm', '4 mm', 'CT Plate'];
+const MATERIALS: MaterialType[] = ['AA', 'CK', 'AW', 'AC', 'LS', 'BC', 'AWC', '3 mm', '4 mm', 'CT Plate', 'Hard wire', 'Roofing sheet'];
 
 export default function LoadSheet() {
   const [entries, setEntries] = useState<StockEntry[]>([]);
@@ -118,7 +118,7 @@ export default function LoadSheet() {
                   }, 0);
                   return (
                     <TableCell key={m} className="border-0 text-center text-black text-xs font-black">
-                      {total > 0 ? `${total.toFixed(3)} Kg` : ''}
+                      {total > 0 ? formatWeight(total) : ''}
                     </TableCell>
                   );
                 })}

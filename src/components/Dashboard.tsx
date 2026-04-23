@@ -13,18 +13,16 @@ import { Separator } from '@/components/ui/separator';
 import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 import { Plus, ArrowUpRight, ArrowDownLeft, Wallet, Package, History, Warehouse as GodownIcon } from 'lucide-react';
-import { formatCurrency, formatWeight, customRound } from '../lib/utils';
+import { formatCurrency, formatWeight, customRound, parseWeight } from '../lib/utils';
 import { format } from 'date-fns';
 import { handleDatabaseError, OperationType } from '../lib/database-errors';
 import { PartySearch } from './PartySearch';
 
-const MATERIALS: MaterialType[] = ['AA', 'CK', 'AW', 'AC', 'LS', 'BC', 'AWC', '3 mm', '4 mm', 'CT Plate'];
+const MATERIALS: MaterialType[] = ['AA', 'CK', 'AW', 'AC', 'LS', 'BC', 'AWC', '3 mm', '4 mm', 'CT Plate', 'Hard wire', 'Roofing sheet'];
 
 export default function Dashboard() {
   const [parties, setParties] = useState<Party[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [allTransactions, setAllTransactions] = useState<Transaction[]>([]);
-  const [stockEntries, setStockEntries] = useState<StockEntry[]>([]);
   const [dailyEntries, setDailyEntries] = useState<DailyEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [lastSelectedPartyId, setLastSelectedPartyId] = useState('');
@@ -42,8 +40,8 @@ export default function Dashboard() {
     partyId: '',
     type: 'Material Received' as TransactionType,
     material: 'AA' as MaterialType,
-    weight: 0,
-    stockWeight: 0,
+    weight: '' as string,
+    stockWeight: '' as string,
     price: 0,
     buyerPrice: 0,
     amount: 0,
@@ -71,18 +69,6 @@ export default function Dashboard() {
       setTransactions(list.sort((a, b) => (b.date || 0) - (a.date || 0)));
     });
 
-    const unsubscribeAllTrans = onValue(transRef, (snapshot) => {
-      const data = snapshot.val();
-      const list = data ? Object.entries(data).map(([id, val]: [string, any]) => ({ id, ...val })) : [];
-      setAllTransactions(list);
-    });
-
-    const stockRef = ref(rtdb, `users/${userId}/stockEntries`);
-    const unsubscribeStock = onValue(stockRef, (snapshot) => {
-      const data = snapshot.val();
-      setStockEntries(data ? Object.entries(data).map(([id, val]: [string, any]) => ({ id, ...val })) : []);
-    });
-
     const dailyRef = ref(rtdb, `users/${userId}/dailyEntries`);
     const unsubscribeDaily = onValue(dailyRef, (snapshot) => {
       const data = snapshot.val();
@@ -92,8 +78,6 @@ export default function Dashboard() {
     return () => {
       unsubscribeParties();
       unsubscribeTrans();
-      unsubscribeAllTrans();
-      unsubscribeStock();
       unsubscribeDaily();
     };
   }, []);
@@ -142,12 +126,15 @@ export default function Dashboard() {
       return;
     }
 
+    const weightNum = parseWeight(formData.weight);
+    const stockWeightNum = parseWeight(formData.stockWeight || formData.weight);
+
     const price = (formData.type === 'Material Received' || formData.type === 'Material Sent') 
       ? formData.price 
       : 0;
 
     const totalValue = (formData.type === 'Material Received' || formData.type === 'Material Sent')
-      ? customRound(formData.weight * price)
+      ? customRound(weightNum * price)
       : formData.amount;
 
     if (isNaN(totalValue)) {
@@ -182,8 +169,8 @@ export default function Dashboard() {
         partyId: formData.partyId,
         type: formData.type,
         material: (formData.type === 'Material Received' || formData.type === 'Material Sent') ? formData.material : null,
-        weight: (formData.type === 'Material Received' || formData.type === 'Material Sent') ? formData.weight : null,
-        stockWeight: (formData.type === 'Material Received' || formData.type === 'Material Sent') ? (formData.stockWeight || formData.weight) : null,
+        weight: (formData.type === 'Material Received' || formData.type === 'Material Sent') ? weightNum : null,
+        stockWeight: (formData.type === 'Material Received' || formData.type === 'Material Sent') ? stockWeightNum : null,
         price: price,
         totalValue: totalValue,
         isDirectTrade: formData.isDirectTrade,
@@ -195,13 +182,11 @@ export default function Dashboard() {
 
       if (formData.type === 'Material Received' && !formData.isDirectTrade) {
         const stockId = push(ref(rtdb, `users/${userId}/stockEntries`)).key;
-        // Prioritize stockWeight if it's entered and > 0, otherwise use weight
-        const finalStockWeight = (formData.stockWeight && formData.stockWeight > 0) ? formData.stockWeight : formData.weight;
         updates[`/users/${userId}/stockEntries/${stockId}`] = {
           material: formData.material,
-          weightRaw: finalStockWeight.toString(),
-          weightKg: finalStockWeight,
-          originalWeight: formData.weight,
+          weightRaw: formData.stockWeight || formData.weight || '0',
+          weightKg: stockWeightNum,
+          originalWeight: weightNum,
           sourcePartyId: formData.partyId,
           packagingType: formData.packagingType,
           bagCount: formData.packagingType === 'Gunny Bags' ? (formData.bagCount || 1) : null,
@@ -234,7 +219,7 @@ export default function Dashboard() {
 
           // For direct trade, we use buyerPrice for the buyer transaction
           const sellingPrice = formData.buyerPrice || formData.price;
-          const sellingTotalValue = customRound(formData.weight * sellingPrice);
+          const sellingTotalValue = customRound(weightNum * sellingPrice);
 
           if (formData.type === 'Material Received') {
             relDebit += sellingTotalValue;
@@ -251,8 +236,8 @@ export default function Dashboard() {
             partyId: formData.relatedPartyId,
             type: formData.type === 'Material Received' ? 'Material Sent' : 'Material Received',
             material: formData.material,
-            weight: formData.weight,
-            stockWeight: formData.stockWeight || formData.weight,
+            weight: weightNum,
+            stockWeight: stockWeightNum,
             price: sellingPrice,
             totalValue: sellingTotalValue,
             isDirectTrade: true,
@@ -269,8 +254,8 @@ export default function Dashboard() {
       toast.success('Transaction recorded successfully');
       setFormData({
         ...formData,
-        weight: 0,
-        stockWeight: 0,
+        weight: '',
+        stockWeight: '',
         price: 0,
         buyerPrice: 0,
         amount: 0,
@@ -358,14 +343,14 @@ export default function Dashboard() {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label>Weight (Kg)</Label>
+                    <Label>Weight (e.g. 64 x 950)</Label>
                     <Input 
                       ref={weightRef}
-                      type="number" 
-                      step="0.001" 
-                      value={formData.weight || ''} 
-                      onChange={e => setFormData({...formData, weight: Number(e.target.value)})} 
+                      type="text" 
+                      value={formData.weight} 
+                      onChange={e => setFormData({...formData, weight: e.target.value})} 
                       onKeyDown={(e) => handleKeyDown(e, stockWeightRef, priceRef)}
+                      placeholder="64 x 950"
                       required 
                     />
                   </div>
@@ -373,10 +358,9 @@ export default function Dashboard() {
                     <Label>Stock Weight</Label>
                     <Input 
                       ref={stockWeightRef}
-                      type="number" 
-                      step="0.001" 
-                      value={formData.stockWeight || ''} 
-                      onChange={e => setFormData({...formData, stockWeight: Number(e.target.value)})} 
+                      type="text" 
+                      value={formData.stockWeight} 
+                      onChange={e => setFormData({...formData, stockWeight: e.target.value})} 
                       onKeyDown={(e) => handleKeyDown(e, packagingRef, weightRef)}
                       placeholder="Defaults to Weight" 
                     />

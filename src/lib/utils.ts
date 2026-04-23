@@ -13,6 +13,7 @@ export function formatWeight(kg: number): string {
 }
 
 export function parseWeight(raw: string): number {
+  if (!raw) return 0;
   // Handle both 'x' and '.' as separators
   const cleanRaw = raw.replace('x', '.');
   const parts = cleanRaw.split('.');
@@ -24,17 +25,18 @@ export function parseWeight(raw: string): number {
   }
   
   if (parts.length === 2) {
-    const whole = parseInt(parts[0], 10);
+    const whole = parseInt(parts[0].trim(), 10) || 0;
     let fractionStr = parts[1].trim();
     
-    // If fraction is single digit like "8", treat as "800"
-    // If "80", treat as "800"
-    // If "08", treat as "080"
+    // Standardize to 3 digits for grams
+    // If "95", treat as "950"
+    // If "9", treat as "900"
+    // If "09", treat as "090"
     if (fractionStr.length === 1) fractionStr += "00";
     else if (fractionStr.length === 2) fractionStr += "0";
+    else if (fractionStr.length > 3) fractionStr = fractionStr.substring(0, 3);
     
-    const fraction = parseInt(fractionStr, 10);
-    if (isNaN(whole) || isNaN(fraction)) return 0;
+    const fraction = parseInt(fractionStr, 10) || 0;
     return whole + (fraction / 1000);
   }
   
