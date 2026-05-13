@@ -87,7 +87,6 @@ export default function Reset() {
         <CardContent className="space-y-4">
           <ul className="list-disc list-inside space-y-2 text-sm text-muted-foreground">
             <li>All <strong>Transaction History</strong> will be permanently deleted.</li>
-            <li>All <strong>Godown Stock</strong> entries will be cleared.</li>
             <li>All <strong>Daily Cash Tracker</strong> records will be removed.</li>
             <li>All <strong>Party Balances</strong> (Debit & Credit) will be reset to ₹0.</li>
             <li><span className="font-bold text-foreground">Note:</span> Your list of Parties will remain, but their balances will be zeroed out.</li>

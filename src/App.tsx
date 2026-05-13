@@ -27,8 +27,6 @@ import { LogIn, LogOut, LayoutDashboard, Users, IndianRupee, Warehouse, FileText
 import Dashboard from './components/Dashboard';
 import Parties from './components/Parties';
 import Payments from './components/Payments';
-import GodownStock from './components/GodownStock';
-import LoadSheet from './components/LoadSheet';
 import DailyTracker from './components/DailyTracker';
 import SalesStock from './components/SalesStock';
 import Reset from './components/Reset';
@@ -275,14 +273,6 @@ export default function App() {
                 <IndianRupee className="w-4 h-4" />
                 <span className="hidden sm:inline">Payments</span>
               </TabsTrigger>
-              <TabsTrigger value="godown" className="flex items-center gap-2 px-4">
-                <Warehouse className="w-4 h-4" />
-                <span className="hidden sm:inline">Godown</span>
-              </TabsTrigger>
-              <TabsTrigger value="load-sheet" className="flex items-center gap-2 px-4">
-                <FileText className="w-4 h-4" />
-                <span className="hidden sm:inline">Load Sheet</span>
-              </TabsTrigger>
               <TabsTrigger value="sales-stock" className="flex items-center gap-2 px-4">
                 <ShoppingBag className="w-4 h-4" />
                 <span className="hidden sm:inline">Sales Stock</span>
@@ -306,12 +296,6 @@ export default function App() {
           </TabsContent>
           <TabsContent value="payments" className="mt-0">
             <Payments />
-          </TabsContent>
-          <TabsContent value="godown" className="mt-0">
-            <GodownStock />
-          </TabsContent>
-          <TabsContent value="load-sheet" className="mt-0">
-            <LoadSheet />
           </TabsContent>
           <TabsContent value="sales-stock" className="mt-0">
             <SalesStock />

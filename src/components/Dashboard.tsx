@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { rtdb, auth } from '../firebase';
 import { ref, onValue, push, set, update, query, orderByChild, limitToLast, serverTimestamp, get } from 'firebase/database';
-import { Transaction, Party, MaterialType, DailyPrice, TransactionType, StockEntry, DailyEntry } from '../types';
+import { Transaction, Party, MaterialType, DailyPrice, TransactionType, DailyEntry } from '../types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -12,7 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
-import { Plus, ArrowUpRight, ArrowDownLeft, Wallet, Package, History, Warehouse as GodownIcon } from 'lucide-react';
+import { Plus, ArrowUpRight, ArrowDownLeft, Wallet, Package, History } from 'lucide-react';
 import { formatCurrency, formatWeight, customRound, parseWeight } from '../lib/utils';
 import { format } from 'date-fns';
 import { handleDatabaseError, OperationType } from '../lib/database-errors';
@@ -28,11 +28,8 @@ export default function Dashboard() {
   const [lastSelectedPartyId, setLastSelectedPartyId] = useState('');
 
   const weightRef = useRef<HTMLInputElement>(null);
-  const stockWeightRef = useRef<HTMLInputElement>(null);
   const priceRef = useRef<HTMLInputElement>(null);
   const materialRef = useRef<HTMLButtonElement>(null);
-  const packagingRef = useRef<HTMLButtonElement>(null);
-  const bagCountRef = useRef<HTMLInputElement>(null);
   const directRef = useRef<HTMLButtonElement>(null);
   const relatedPartyRef = useRef<HTMLButtonElement>(null);
 
@@ -41,14 +38,11 @@ export default function Dashboard() {
     type: 'Material Received' as TransactionType,
     material: 'AA' as MaterialType,
     weight: '' as string,
-    stockWeight: '' as string,
     price: 0,
     buyerPrice: 0,
     amount: 0,
     isDirectTrade: false,
     relatedPartyId: '',
-    packagingType: 'Gunny Bags' as 'Gunny Bags' | 'Loose',
-    bagCount: 1,
   });
 
   useEffect(() => {
@@ -127,7 +121,6 @@ export default function Dashboard() {
     }
 
     const weightNum = parseWeight(formData.weight);
-    const stockWeightNum = parseWeight(formData.stockWeight || formData.weight);
 
     const price = (formData.type === 'Material Received' || formData.type === 'Material Sent') 
       ? formData.price 
@@ -170,30 +163,12 @@ export default function Dashboard() {
         type: formData.type,
         material: (formData.type === 'Material Received' || formData.type === 'Material Sent') ? formData.material : null,
         weight: (formData.type === 'Material Received' || formData.type === 'Material Sent') ? weightNum : null,
-        stockWeight: (formData.type === 'Material Received' || formData.type === 'Material Sent') ? stockWeightNum : null,
         price: price,
         totalValue: totalValue,
         isDirectTrade: formData.isDirectTrade,
         relatedPartyId: formData.relatedPartyId,
-        packagingType: (formData.type === 'Material Received' || formData.type === 'Material Sent') ? formData.packagingType : null,
-        bagCount: (formData.type === 'Material Received' || formData.type === 'Material Sent') && formData.packagingType === 'Gunny Bags' ? (formData.bagCount || 1) : null,
         date: serverTimestamp(),
       };
-
-      if (formData.type === 'Material Received' && !formData.isDirectTrade) {
-        const stockId = push(ref(rtdb, `users/${userId}/stockEntries`)).key;
-        updates[`/users/${userId}/stockEntries/${stockId}`] = {
-          material: formData.material,
-          weightRaw: formData.stockWeight || formData.weight || '0',
-          weightKg: stockWeightNum,
-          originalWeight: weightNum,
-          sourcePartyId: formData.partyId,
-          packagingType: formData.packagingType,
-          bagCount: formData.packagingType === 'Gunny Bags' ? (formData.bagCount || 1) : null,
-          transactionId: transId,
-          date: serverTimestamp(),
-        };
-      }
 
       updates[`/users/${userId}/parties/${formData.partyId}/currentDebit`] = newDebit;
       updates[`/users/${userId}/parties/${formData.partyId}/currentCredit`] = newCredit;
@@ -237,13 +212,10 @@ export default function Dashboard() {
             type: formData.type === 'Material Received' ? 'Material Sent' : 'Material Received',
             material: formData.material,
             weight: weightNum,
-            stockWeight: stockWeightNum,
             price: sellingPrice,
             totalValue: sellingTotalValue,
             isDirectTrade: true,
             relatedPartyId: formData.partyId,
-            packagingType: formData.packagingType,
-            bagCount: formData.packagingType === 'Gunny Bags' ? (formData.bagCount || 1) : null,
             date: serverTimestamp(),
           };
         }
@@ -255,13 +227,11 @@ export default function Dashboard() {
       setFormData({
         ...formData,
         weight: '',
-        stockWeight: '',
         price: 0,
         buyerPrice: 0,
         amount: 0,
         isDirectTrade: false,
         relatedPartyId: '',
-        bagCount: 1,
       });
     } catch (error) {
       const message = handleDatabaseError(error, OperationType.WRITE, 'transactions');
@@ -341,65 +311,19 @@ export default function Dashboard() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Weight (e.g. 64 x 950)</Label>
-                    <Input 
-                      ref={weightRef}
-                      type="text" 
-                      value={formData.weight} 
-                      onChange={e => setFormData({...formData, weight: e.target.value})} 
-                      onKeyDown={(e) => handleKeyDown(e, stockWeightRef, priceRef)}
-                      placeholder="64 x 950"
-                      required 
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Stock Weight</Label>
-                    <Input 
-                      ref={stockWeightRef}
-                      type="text" 
-                      value={formData.stockWeight} 
-                      onChange={e => setFormData({...formData, stockWeight: e.target.value})} 
-                      onKeyDown={(e) => handleKeyDown(e, packagingRef, weightRef)}
-                      placeholder="Defaults to Weight" 
-                    />
-                  </div>
+                <div className="space-y-2">
+                  <Label>Weight (e.g. 64 x 950)</Label>
+                  <Input 
+                    ref={weightRef}
+                    type="text" 
+                    value={formData.weight} 
+                    onChange={e => setFormData({...formData, weight: e.target.value})} 
+                    onKeyDown={(e) => handleKeyDown(e, directRef, priceRef)}
+                    placeholder="64 x 950"
+                    required 
+                  />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Packaging Type</Label>
-                    <Select 
-                      value={formData.packagingType} 
-                      onValueChange={(val: 'Gunny Bags' | 'Loose') => setFormData({...formData, packagingType: val})}
-                    >
-                      <SelectTrigger ref={packagingRef} onKeyDown={(e) => handleKeyDown(e, formData.packagingType === 'Gunny Bags' ? bagCountRef : directRef, stockWeightRef)}>
-                        <SelectValue placeholder="Select packaging" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Gunny Bags">Gunny Bags</SelectItem>
-                        <SelectItem value="Loose">Loose</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {formData.packagingType === 'Gunny Bags' && (
-                    <div className="space-y-2 animate-in fade-in slide-in-from-top-1">
-                      <Label>No. of Bags</Label>
-                      <Input 
-                        ref={bagCountRef}
-                        type="number" 
-                        min="1"
-                        value={formData.bagCount || ''} 
-                        onChange={e => setFormData({...formData, bagCount: Number(e.target.value)})} 
-                        onKeyDown={(e) => handleKeyDown(e, directRef, packagingRef)}
-                        placeholder="1"
-                      />
-                    </div>
-                  )}
-                </div>
-                
                 <div className="flex flex-col gap-3 pt-2">
                   <div className="flex items-center space-x-2">
                     <Checkbox 
@@ -407,7 +331,7 @@ export default function Dashboard() {
                       id="direct" 
                       checked={formData.isDirectTrade} 
                       onCheckedChange={(val: boolean) => setFormData({...formData, isDirectTrade: val})} 
-                      onKeyDown={(e) => handleKeyDown(e, formData.isDirectTrade ? relatedPartyRef : undefined, packagingRef)}
+                      onKeyDown={(e) => handleKeyDown(e, formData.isDirectTrade ? relatedPartyRef : undefined, weightRef)}
                     />
                     <Label htmlFor="direct" className="text-sm font-medium leading-none">
                       Direct Seller-to-Buyer Trade
@@ -508,6 +432,7 @@ export default function Dashboard() {
                   <TableHead className="pl-6">Date</TableHead>
                   <TableHead>Party</TableHead>
                   <TableHead>Type</TableHead>
+                  <TableHead>Material</TableHead>
                   <TableHead>Weight</TableHead>
                   <TableHead className="text-right">Value</TableHead>
                 </TableRow>
@@ -515,7 +440,7 @@ export default function Dashboard() {
               <TableBody>
                 {transactions.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
                       No transactions recorded yet.
                     </TableCell>
                   </TableRow>
@@ -533,15 +458,11 @@ export default function Dashboard() {
                           {t.type}
                         </Badge>
                       </TableCell>
+                      <TableCell className="text-xs uppercase font-medium">
+                        {t.material || '-'}
+                      </TableCell>
                       <TableCell className="text-xs font-mono">
-                        {t.weight ? (
-                          <div className="flex flex-col">
-                            <span>{formatWeight(t.weight)}</span>
-                            {t.stockWeight && t.stockWeight !== t.weight && (
-                              <span className="text-[10px] text-muted-foreground">Stock: {formatWeight(t.stockWeight)}</span>
-                            )}
-                          </div>
-                        ) : '-'}
+                        {t.weight ? formatWeight(t.weight) : '-'}
                       </TableCell>
                       <TableCell className="text-right font-mono font-bold">
                         {formatCurrency(t.totalValue)}
