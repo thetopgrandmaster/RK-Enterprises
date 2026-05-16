@@ -145,13 +145,13 @@ export default function Dashboard() {
       let newDebit = partyData.currentDebit || 0;
       let newCredit = partyData.currentCredit || 0;
 
-      if (formData.type === 'Money Given') {
+      if (formData.type === 'Money Given' || formData.type === 'Tempo') {
         newDebit += totalValue;
       } else if (formData.type === 'Money Received') {
         newCredit += totalValue;
       } else if (formData.type === 'Material Received') {
         newCredit += totalValue;
-      } else if (formData.type === 'Material Sent') {
+      } else if (formData.type === 'Material Sent' || formData.type === 'Tax') {
         newDebit += totalValue;
       }
 
@@ -272,15 +272,40 @@ export default function Dashboard() {
 
             <div className="space-y-2">
               <Label>Transaction Type</Label>
-              <Select value={formData.type} onValueChange={(val: TransactionType) => setFormData({...formData, type: val})}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Material Received">Material Received</SelectItem>
-                  <SelectItem value="Material Sent">Material Sent</SelectItem>
-                </SelectContent>
-              </Select>
+              <div className="flex flex-wrap gap-2">
+                <Select 
+                  value={(formData.type === 'Tax' || formData.type === 'Tempo') ? "" : formData.type} 
+                  onValueChange={(val: TransactionType) => setFormData({...formData, type: val})}
+                >
+                  <SelectTrigger className="flex-1 min-w-[150px]">
+                    <SelectValue placeholder="Select type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Material Received">Material Received</SelectItem>
+                    <SelectItem value="Material Sent">Material Sent</SelectItem>
+                    <SelectItem value="Money Received">Money Received</SelectItem>
+                    <SelectItem value="Money Given">Money Given</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button 
+                  type="button" 
+                  variant={formData.type === 'Tax' ? 'default' : 'outline'}
+                  size="sm"
+                  className="h-10"
+                  onClick={() => setFormData({...formData, type: 'Tax'})}
+                >
+                  Tax
+                </Button>
+                <Button 
+                  type="button" 
+                  variant={formData.type === 'Tempo' ? 'default' : 'outline'}
+                  size="sm"
+                  className="h-10"
+                  onClick={() => setFormData({...formData, type: 'Tempo'})}
+                >
+                  Tempo
+                </Button>
+              </div>
             </div>
 
             {(formData.type === 'Material Received' || formData.type === 'Material Sent') ? (
@@ -312,14 +337,14 @@ export default function Dashboard() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Weight (e.g. 64 x 950)</Label>
+                  <Label>Weight</Label>
                   <Input 
                     ref={weightRef}
                     type="text" 
                     value={formData.weight} 
                     onChange={e => setFormData({...formData, weight: e.target.value})} 
                     onKeyDown={(e) => handleKeyDown(e, directRef, priceRef)}
-                    placeholder="64 x 950"
+                    placeholder="Enter weight"
                     required 
                   />
                 </div>
@@ -454,7 +479,7 @@ export default function Dashboard() {
                         {parties.find(p => p.id === t.partyId)?.name || 'Unknown'}
                       </TableCell>
                       <TableCell>
-                        <Badge variant={t.type.includes('Material') ? 'secondary' : 'outline'} className="text-[10px]">
+                        <Badge variant={(t.type.includes('Material') || t.type === 'Tax' || t.type === 'Tempo') ? 'secondary' : 'outline'} className="text-[10px]">
                           {t.type}
                         </Badge>
                       </TableCell>

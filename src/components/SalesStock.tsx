@@ -165,7 +165,7 @@ export default function SalesStock() {
                 val = updates[`/users/${userId}/transactions/${id}/totalValue`];
               }
 
-              if (t.type === 'Material Sent' || t.type === 'Tax' || t.type === 'Money Given') {
+              if (t.type === 'Material Sent' || t.type === 'Tax' || t.type === 'Tempo' || t.type === 'Money Given') {
                 totalDebit += val;
               } else if (t.type === 'Money Received' || t.type === 'Material Received') {
                 totalCredit += val;
@@ -321,20 +321,22 @@ export default function SalesStock() {
                   </TableRow>
                 ) : (
                   transactions.map((t) => {
-                    const isPayment = t.type === 'Money Received';
+                    const isPayment = t.type === 'Money Received' || t.type === 'Money Given';
                     const isTax = t.type === 'Tax';
+                    const isTempo = t.type === 'Tempo';
                     const isMaterial = t.type.includes('Material');
                     
                     // Calculate effect on balance
                     // For a buyer:
                     // Material Sent (Debit) -> +
                     // Tax (Debit) -> +
+                    // Tempo (Debit) -> +
                     // Money Received (Credit) -> -
                     // Material Received (Credit) -> -
                     // Money Given (Debit) -> +
                     
                     let effect = 0;
-                    if (t.type === 'Material Sent' || t.type === 'Tax' || t.type === 'Money Given') {
+                    if (t.type === 'Material Sent' || t.type === 'Tax' || t.type === 'Tempo' || t.type === 'Money Given') {
                       effect = t.totalValue || t.amount || 0;
                     } else if (t.type === 'Money Received' || t.type === 'Material Received') {
                       effect = -(t.totalValue || t.amount || 0);
@@ -357,14 +359,14 @@ export default function SalesStock() {
                               <span className="text-[10px] text-muted-foreground uppercase">{t.material}</span>
                             </div>
                           ) : (
-                            <span className={isTax ? "text-red-600 font-bold" : isPayment ? "text-blue-600 font-bold" : ""}>
+                            <span className={isTax || isTempo ? "text-red-600 font-bold" : isPayment ? "text-blue-600 font-bold" : ""}>
                               {isTax ? (t.taxName || 'Tax') : t.type}
                             </span>
                           )}
                         </TableCell>
                         <TableCell className={cn(
                           "text-right font-bold",
-                          isTax ? "text-red-600" : isPayment ? "text-blue-600" : ""
+                          isTax || isTempo ? "text-red-600" : isPayment ? "text-blue-600" : ""
                         )}>
                           {formatCurrency(t.totalValue || t.amount || 0)}
                         </TableCell>
