@@ -41,6 +41,7 @@ export default function Dashboard() {
     price: 0,
     buyerPrice: 0,
     amount: 0,
+    taxName: '',
     isDirectTrade: false,
     relatedPartyId: '',
   });
@@ -145,10 +146,8 @@ export default function Dashboard() {
       let newDebit = partyData.currentDebit || 0;
       let newCredit = partyData.currentCredit || 0;
 
-      if (formData.type === 'Money Given' || formData.type === 'Tempo') {
+      if (formData.type === 'Tempo') {
         newDebit += totalValue;
-      } else if (formData.type === 'Money Received') {
-        newCredit += totalValue;
       } else if (formData.type === 'Material Received') {
         newCredit += totalValue;
       } else if (formData.type === 'Material Sent' || formData.type === 'Tax') {
@@ -165,6 +164,7 @@ export default function Dashboard() {
         weight: (formData.type === 'Material Received' || formData.type === 'Material Sent') ? weightNum : null,
         price: price,
         totalValue: totalValue,
+        taxName: formData.type === 'Tax' ? formData.taxName : null,
         isDirectTrade: formData.isDirectTrade,
         relatedPartyId: formData.relatedPartyId,
         date: serverTimestamp(),
@@ -172,17 +172,6 @@ export default function Dashboard() {
 
       updates[`/users/${userId}/parties/${formData.partyId}/currentDebit`] = newDebit;
       updates[`/users/${userId}/parties/${formData.partyId}/currentCredit`] = newCredit;
-
-      // Add to daily entries if it's a money transaction
-      if (formData.type === 'Money Given' || formData.type === 'Money Received') {
-        const dailyId = push(ref(rtdb, `users/${userId}/dailyEntries`)).key;
-        updates[`/users/${userId}/dailyEntries/${dailyId}`] = {
-          type: formData.type === 'Money Given' ? 'outgoing' : 'income',
-          amount: totalValue,
-          name: partyData.name,
-          date: serverTimestamp(),
-        };
-      }
 
       if (formData.isDirectTrade && formData.relatedPartyId) {
         const relatedRef = ref(rtdb, `users/${userId}/parties/${formData.relatedPartyId}`);
@@ -230,6 +219,7 @@ export default function Dashboard() {
         price: 0,
         buyerPrice: 0,
         amount: 0,
+        taxName: '',
         isDirectTrade: false,
         relatedPartyId: '',
       });
@@ -283,8 +273,6 @@ export default function Dashboard() {
                   <SelectContent>
                     <SelectItem value="Material Received">Material Received</SelectItem>
                     <SelectItem value="Material Sent">Material Sent</SelectItem>
-                    <SelectItem value="Money Received">Money Received</SelectItem>
-                    <SelectItem value="Money Given">Money Given</SelectItem>
                   </SelectContent>
                 </Select>
                 <Button 
@@ -393,14 +381,28 @@ export default function Dashboard() {
                 )}
               </>
             ) : (
-              <div className="space-y-2">
-                <Label>Amount (₹)</Label>
-                <Input 
-                  type="number" 
-                  value={formData.amount || ''} 
-                  onChange={e => setFormData({...formData, amount: Number(e.target.value)})} 
-                  required 
-                />
+              <div className="space-y-4">
+                {formData.type === 'Tax' && (
+                  <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
+                    <Label>Tax Name (e.g. TDS, CGST)</Label>
+                    <Input 
+                      type="text" 
+                      value={formData.taxName} 
+                      onChange={e => setFormData({...formData, taxName: e.target.value})} 
+                      placeholder="Enter tax name"
+                      required 
+                    />
+                  </div>
+                )}
+                <div className="space-y-2">
+                  <Label>Amount (₹)</Label>
+                  <Input 
+                    type="number" 
+                    value={formData.amount || ''} 
+                    onChange={e => setFormData({...formData, amount: Number(e.target.value)})} 
+                    required 
+                  />
+                </div>
               </div>
             )}
 
