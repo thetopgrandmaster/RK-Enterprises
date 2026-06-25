@@ -44,7 +44,7 @@ service cloud.firestore {
 
     function isValidDailyPrice(data) {
       return data.date is string && data.date.matches("^\\d{4}-\\d{2}-\\d{2}$") &&
-             data.material in ['AA', 'CK', 'AW', 'AC', 'LS', 'BC', 'AWC'] &&
+             data.material in ['AA', 'AE 6063', 'AE 6061', 'CK', 'AW', 'AC', 'LS', 'BC', 'AWC'] &&
              data.price is number && data.price >= 0;
     }
 
@@ -62,7 +62,7 @@ service cloud.firestore {
     }
 
     function isValidStockEntry(data) {
-      return data.material in ['AA', 'CK', 'AW', 'AC', 'LS', 'BC', 'AWC'] &&
+      return data.material in ['AA', 'AE 6063', 'AE 6061', 'CK', 'AW', 'AC', 'LS', 'BC', 'AWC'] &&
              data.weightRaw is string && data.weightKg is number &&
              (!('transactionId' in data) || data.transactionId is string) &&
              (!('packagingType' in data) || data.packagingType in ['Gunny Bags', 'Loose']);
